@@ -603,6 +603,7 @@
       detailEmplacement: "",
       detailAlerte: "",
       gammeFilter: "",
+      ruptureSearch: "",
       livraisonSearch: "",
       livraisonEnseigne: "",
       livraisonExpediteur: "",
@@ -616,6 +617,7 @@
 
     const tabs = [
       { id: "detail", label: "SODA" },
+      { id: "rupture", label: "❌ Ruptures" },
       { id: "livraisons", label: "📦 Livraisons" },
       { id: "anomalies", label: "Anomalies" },
       { id: "help", label: "Mode d'emploi" }
@@ -629,6 +631,7 @@
       detail: [["alertLabel", "Statut alerte"], ...REQUIRED_COLUMNS.filter((c) => c !== "ID").map((c) => [c, c])],
       technicians: [["technicien", "Technicien"], ["LIVRAISON", "Date"], ["week", "Semaine ISO"], ["year", "Année"], ["IMEI", "IMEI"], ["SN", "SN"], ["MARKETING_NAME", "Produit"], ["PRODUIT", "Produit court"], ["GAMME", "Gamme"], ["SKU", "SKU"], ["STATUT", "Statut"], ["EMPLACEMENT", "Emplacement"], ["ENSEIGNE", "Enseigne"], ["MAGASIN", "Magasin"], ["MOBILIER", "Mobilier"], ["techniciens", "Equipe"]],
       planning: [["technicien", "Technicien"], ["week", "Semaine ISO"], ["year", "Année"], ["MAGASIN", "Magasin"], ["ENSEIGNE", "Enseigne"], ["MOBILIER", "Mobilier"], ["SKU", "SKU"], ["MARKETING_NAME", "Produit"]],
+      rupture: [["canonicalName", "Produit"], ["gamme", "Gamme"], ["qtyKube", "Stock Kube"], ["ruptureStandby", "Standby"], ["ruptureLivraison", "Livraison"], ["ruptureMagasin", "Magasin"], ["ruptureVol", "Vol"], ["ruptureProjet", "Projet"]],
       anomalies: [["type", "Type"], ["ID", "ID"], ["SKU", "SKU"], ["STATUT", "Statut"], ["EMPLACEMENT", "Emplacement"], ["detail", "Détail"]],
       history: [["importedAtLabel", "Date d'import"], ["fileName", "Fichier"], ["rowCount", "Lignes"], ["physical", "Stock physique"], ["owned", "Stock Kube"], ["standby", "Standby"], ["status", "Statut"], ["action", "Action"]],
       livraisons: [
@@ -770,6 +773,7 @@
             qtyKube: 0,
             qtyStandby: 0,
             qtyTotal: 0,
+            qtyByStatus: { STANDBY: 0, LIVRAISON: 0, MAGASIN: 0, VOL: 0, PROJET: 0 },
             totalSeen: 0,
             names: new Map()
           });
@@ -784,6 +788,7 @@
         if (rowData.MARKETING_NAME) group.names.set(rowData.MARKETING_NAME, (group.names.get(rowData.MARKETING_NAME) || 0) + 1);
         if (isOwnedStock(rowData)) group.qtyKube += 1;
         if (isStandbyStock(rowData)) group.qtyStandby += 1;
+        if (isCountableArticle(rowData) && Object.prototype.hasOwnProperty.call(group.qtyByStatus, rowData.STATUT)) group.qtyByStatus[rowData.STATUT] += 1;
       });
       return [...groups.values()].map((group) => {
         group.qtyTotal = group.qtyKube + group.qtyStandby;
@@ -793,9 +798,14 @@
         if (group.types && group.types.size) group.type = [...group.types].sort().join(", ");
         group.canonicalName = mostFrequentName(group.names) || [group.produit, group.coloris].filter(Boolean).join(" ") || group.sku || "SKU non renseigné";
         if (group.isFactice && !/\bFACTICE\b/i.test(group.canonicalName)) group.canonicalName = `${group.produit || group.canonicalName} Factice`;
-        const alert = alertForQty(group.qtyTotal);
+        const alert = alertForQty(group.qtyKube, group.qtyByStatus);
         group.alert = alert.id;
         group.alertLabel = alert.label;
+        group.ruptureStandby = group.qtyByStatus.STANDBY || 0;
+        group.ruptureLivraison = group.qtyByStatus.LIVRAISON || 0;
+        group.ruptureMagasin = group.qtyByStatus.MAGASIN || 0;
+        group.ruptureVol = group.qtyByStatus.VOL || 0;
+        group.ruptureProjet = group.qtyByStatus.PROJET || 0;
         return group;
       });
     }
@@ -808,11 +818,12 @@
       return best ? best.name : "";
     }
 
-    function alertForQty(qty) {
-      if (qty >= 16) return { id: "ok", label: "OK" };
-      if (qty >= 5) return { id: "low", label: "Bas" };
-      if (qty >= 1) return { id: "critical", label: "Critique" };
-      return { id: "zero", label: "Rupture" };
+    function alertForQty(qtyKube, qtyByStatus) {
+      if (qtyKube >= 16) return { id: "ok", label: "OK" };
+      if (qtyKube >= 5) return { id: "low", label: "Bas" };
+      if (qtyKube >= 1) return { id: "critical", label: "Critique" };
+      const hasElsewhere = qtyByStatus && ["STANDBY", "LIVRAISON", "MAGASIN", "VOL", "PROJET"].some(s => qtyByStatus[s] > 0);
+      return hasElsewhere ? { id: "rupture", label: "Rupture" } : { id: "zero", label: "Épuisé" };
     }
 
     function detectAnomalies(rows) {
@@ -857,6 +868,7 @@
         low: skuRows.filter((r) => r.alert === "low").length,
         critical: skuRows.filter((r) => r.alert === "critical").length,
         zero: skuRows.filter((r) => r.alert === "zero").length,
+        rupture: skuRows.filter((r) => r.alert === "rupture").length,
         project: rows.filter((r) => r.STATUT === "PROJET" && r.EMPLACEMENT === "KUBE DESIGN").length,
         hs: rows.filter((r) => r.STATUT === "HS").length,
         incoming: rows.filter((r) => r.STATUT === "LIVRAISON").length,
@@ -890,7 +902,8 @@
         ["project", "Réservé projet", m.project, "blue", () => state.rows.filter((r) => r.STATUT === "PROJET" && r.EMPLACEMENT === "KUBE DESIGN")],
         ["hs", "HS", m.hs, "red", () => state.rows.filter((r) => r.STATUT === "HS")],
         ["low", "Stock 15 à 5", m.low, "orange", () => state.skuRows.filter((r) => r.alert === "low").sort((a, b) => a.qtyTotal - b.qtyTotal)],
-        ["critical", "Stock 5 à 0", m.critical + m.zero, "red critical", () => state.skuRows.filter((r) => r.alert === "critical" || r.alert === "zero").sort((a, b) => a.qtyTotal - b.qtyTotal)],
+        ["critical", "Stock 5 à 0", m.critical, "red critical", () => state.skuRows.filter((r) => r.alert === "critical").sort((a, b) => a.qtyTotal - b.qtyTotal)],
+        ["rupture", "Ruptures", m.rupture, "red", "rupture"],
         ["anomalies", "Anomalies", m.anomalies, "red", "anomalies"]
       ];
       document.getElementById("kpiGrid").innerHTML = kpis.map(([id, label, value, color, , def]) =>
@@ -955,6 +968,11 @@
           intro: "Articles avec STATUT = LIVRAISON. Recherche par IMEI, SN, produit, enseigne.",
           tools: "livraisons"
         },
+        rupture: {
+          title: "Ruptures stock kube",
+          intro: "Produits avec 0 unité en Stock Kube mais présents dans un autre statut (Standby, Livraison, Magasin, Vol, Projet).",
+          tools: "rupture"
+        },
         anomalies: {
           title: "Anomalies",
           intro: "Contrôles automatiques : statuts incohérents, SKU manquants non factices, doublons IMEI/SN et valeurs non reconnues.",
@@ -992,6 +1010,7 @@
       if (tab === "planning") return { key: "week", dir: "asc" };
       if (tab === "history") return { key: "importedAt", dir: "desc" };
       if (tab === "help") return { key: "theme", dir: "asc" };
+      if (tab === "rupture") return { key: "canonicalName", dir: "asc" };
       return { key: "__index", dir: "asc" };
     }
 
@@ -1000,6 +1019,7 @@
       if (state.currentTab === "technicians") return technicianRows();
       if (state.currentTab === "livraisons") return livraisonsRows();
       if (state.currentTab === "planning") return planningRows();
+      if (state.currentTab === "rupture") return state.skuRows.filter((r) => r.alert === "rupture");
       if (state.currentTab === "anomalies") return state.anomalies;
       if (state.currentTab === "history") return importHistoryRows();
       if (state.currentTab === "help") return helpRows();
@@ -1012,6 +1032,7 @@
         sr.names.forEach((_, name) => alertMap.set(name, { alert: sr.alert, alertLabel: sr.alertLabel }));
       });
       rows.forEach((r) => {
+        if (r.STATUT !== "STOCK KUBE") { r.alertLabel = ""; r.alert = ""; return; }
         const info = r.MARKETING_NAME ? alertMap.get(r.MARKETING_NAME) : null;
         r.alertLabel = info ? info.alertLabel : "";
         r.alert = info ? info.alert : "";
@@ -1031,12 +1052,15 @@
         { theme: "Livraisons", description: "Articles avec STATUT = LIVRAISON. L’onglet Livraisons permet de filtrer par enseigne, expéditeur, gamme et recherche libre (toutes colonnes)." },
         { theme: "Réservé projet", description: "Articles avec STATUT = PROJET et EMPLACEMENT = KUBE DESIGN." },
         { theme: "HS", description: "Articles avec STATUT = HS — produits Grade D." },
-        { theme: "Stock 15 à 5 / 5 à 0", description: "Les alertes se calculent par PRODUIT (quantité disponible = Stock Kube + Standby). De 15 à 5 : orange. En dessous de 5 : rouge. À 0 : épuisé." },
+        { theme: "Alertes stock", description: "Les alertes sont calculées par PRODUIT (MARKETING_NAME) sur la base du Stock Kube uniquement (STATUT = STOCK KUBE, EMPLACEMENT = KUBE DESIGN). Seuils : OK = 16 et +, Bas = 5 à 15, Critique = 1 à 4. Seules les lignes STOCK KUBE affichent une alerte dans l’onglet SODA." },
+        { theme: "Rupture", description: "Un produit est en rupture quand il a 0 unité en Stock Kube mais qu’il en reste dans au moins un autre statut (Standby, Livraison, Magasin, Vol, Projet). L’indicateur Ruptures en haut ouvre l’onglet ❌ Ruptures qui liste ces produits avec la répartition par statut." },
+        { theme: "Épuisé", description: "Un produit est épuisé quand il a 0 unité en Stock Kube ET aucune unité dans aucun autre statut." },
         { theme: "Factices", description: "Un article est factice si SKU = FACTICE, TYPE = FACTICE, ou s’il n’a ni IMEI ni SN (sauf accessoires ACC qui sont de vrais produits sans IMEI/SN)." },
-        { theme: "Onglet SODA", description: "Toutes les lignes importées depuis SODA. Filtres disponibles : recherche libre (toutes colonnes), statut, emplacement, statut alerte, gamme. La colonne Statut alerte est affichée en premier." },
+        { theme: "Onglet SODA", description: "Toutes les lignes importées depuis SODA. Filtres disponibles : recherche libre (toutes colonnes), statut, emplacement, statut alerte, gamme. La colonne Statut alerte n’est remplie que pour les lignes STOCK KUBE." },
+        { theme: "Onglet Ruptures", description: "Liste les produits avec 0 unité en Stock Kube mais présents dans un autre statut. Colonnes : Standby, Livraison, Magasin, Vol, Projet. Accessible via l’indicateur Ruptures ou l’onglet ❌ Ruptures." },
         { theme: "Anomalies", description: "L’onglet Anomalies liste les incohérences détectées : statuts incohérents avec l’emplacement, SKU manquants, valeurs non reconnues." },
         { theme: "Graphiques", description: "Chaque graphique dans l’onglet SODA est cliquable. Cliquer sur une barre ou une portion ouvre le détail filtré correspondant dans un panneau latéral." },
-        { theme: "Indicateurs", description: "Chaque indicateur du haut est cliquable : Stock physique, Stock Kube, Standby, Projet, HS ouvrent un panneau détail. Livraisons ouvre l’onglet Livraisons. Anomalies ouvre l’onglet Anomalies." },
+        { theme: "Indicateurs", description: "Chaque indicateur du haut est cliquable : Stock physique, Stock Kube, Standby, Projet, HS ouvrent un panneau détail. Livraisons et Ruptures ouvrent leur onglet respectif. Anomalies ouvre l’onglet Anomalies." },
         { theme: "Générer l’AD STOCK KUBE", description: "Exporte un fichier .xls avec deux feuilles : TCD (pivot MARKETING_NAME × STATUT, TYPE = RDU/LDU uniquement) et BDD (toutes les lignes, 17 colonnes SODA). Pour ajouter la navigation interactive (double-clic sur cellule → détail), exécuter le script ajouter-vba-tcd.ps1 sur le fichier exporté." },
         { theme: "Recherche universelle", description: "La barre de recherche globale (en haut) et les barres par onglet cherchent dans toutes les colonnes : GAMME, PRODUIT, TYPE, COLORIS, MARKETING_NAME, SKU, IMEI, SN, STATUT, EMPLACEMENT, EXPEDITEUR, LIVRAISON, ENSEIGNE, MAGASIN, PLANNING, MOBILIER, COMMENTAIRE." }
       ];
@@ -1084,6 +1108,10 @@
         if (state.currentTab === "detail" && state.detailStatut && r.STATUT !== state.detailStatut) return false;
         if (state.currentTab === "detail" && state.detailEmplacement && r.EMPLACEMENT !== state.detailEmplacement) return false;
         if (state.currentTab === "detail" && state.detailAlerte && r.alert !== state.detailAlerte) return false;
+        if (state.currentTab === "rupture" && state.ruptureSearch) {
+          const rq = state.ruptureSearch.toUpperCase();
+          if (!String(r.canonicalName || "").toUpperCase().includes(rq) && !String(r.gamme || "").toUpperCase().includes(rq)) return false;
+        }
         if (state.currentTab === "technicians" && state.techSearch) {
           const techQuery = state.techSearch.toUpperCase();
           if (!r.__search || !r.__search.includes(techQuery)) return false;
@@ -1183,23 +1211,33 @@
       const technicianSearch = config.tools === "technicians" ? `
         <input id="techSearch" type="search" placeholder="Rechercher IMEI, SN, technicien, produit" value="${escapeHtml(state.techSearch)}">
       ` : "";
-      const stockSearch = config.tools === "stock" ? `
-        <input id="detailSearch" type="search" placeholder="Rechercher dans toutes les colonnes…" value="${escapeHtml(state.detailSearch)}" style="min-width:220px">
-        <select id="detailStatut">
-          <option value="">Tous statuts</option>
-          ${distinctStatuts.map((s) => `<option value="${escapeHtml(s)}" ${state.detailStatut === s ? "selected" : ""}>${escapeHtml(s)}</option>`).join("")}
-        </select>
-        <select id="detailEmplacement">
-          <option value="">Tous emplacements</option>
-          ${distinctEmplacements.map((e) => `<option value="${escapeHtml(e)}" ${state.detailEmplacement === e ? "selected" : ""}>${escapeHtml(e)}</option>`).join("")}
-        </select>
-        <select id="detailAlerte">
-          <option value="">Tous statuts alerte</option>
-          <option value="ok" ${state.detailAlerte === "ok" ? "selected" : ""}>OK</option>
-          <option value="low" ${state.detailAlerte === "low" ? "selected" : ""}>Stock bas</option>
-          <option value="critical" ${state.detailAlerte === "critical" ? "selected" : ""}>Critique</option>
-          <option value="zero" ${state.detailAlerte === "zero" ? "selected" : ""}>Épuisé</option>
-        </select>
+      const stockSearch = config.tools === "stock" ? (() => {
+        const count = state.filteredRows.length;
+        const gammeTag = state.gammeFilter ? `<span class="badge-filters">— ${escapeHtml(state.gammeFilter)}</span>` : "";
+        const badge = `<span class="livraison-badge"><span class="badge-count">${count}</span> article${count !== 1 ? "s" : ""} ${gammeTag}</span>`;
+        return `
+          <input id="detailSearch" type="search" placeholder="Rechercher dans toutes les colonnes…" value="${escapeHtml(state.detailSearch)}" style="min-width:220px">
+          ${badge}
+          <select id="detailStatut">
+            <option value="">Tous statuts</option>
+            ${distinctStatuts.map((s) => `<option value="${escapeHtml(s)}" ${state.detailStatut === s ? "selected" : ""}>${escapeHtml(s)}</option>`).join("")}
+          </select>
+          <select id="detailEmplacement">
+            <option value="">Tous emplacements</option>
+            ${distinctEmplacements.map((e) => `<option value="${escapeHtml(e)}" ${state.detailEmplacement === e ? "selected" : ""}>${escapeHtml(e)}</option>`).join("")}
+          </select>
+          <select id="detailAlerte">
+            <option value="">Tous statuts alerte</option>
+            <option value="ok" ${state.detailAlerte === "ok" ? "selected" : ""}>OK</option>
+            <option value="low" ${state.detailAlerte === "low" ? "selected" : ""}>Stock bas</option>
+            <option value="critical" ${state.detailAlerte === "critical" ? "selected" : ""}>Critique</option>
+            <option value="zero" ${state.detailAlerte === "zero" ? "selected" : ""}>Épuisé</option>
+          </select>
+        `;
+      })() : "";
+
+      const ruptureSearch = config.tools === "rupture" ? `
+        <input id="ruptureSearch" type="search" placeholder="Rechercher un produit…" value="${escapeHtml(state.ruptureSearch)}" style="min-width:220px">
       ` : "";
 
       const livraisonTools = config.tools === "livraisons" ? (() => {
@@ -1227,9 +1265,9 @@
         </select>
       `;
 
-      const countBadge = config.tools !== "livraisons" && config.tools !== "history" ? (() => {
+      const countBadge = config.tools !== "livraisons" && config.tools !== "history" && config.tools !== "stock" ? (() => {
         const count = state.filteredRows.length;
-        const label = state.currentTab === "anomalies" ? "anomalie" : state.currentTab === "detail" ? "article" : "ligne";
+        const label = state.currentTab === "anomalies" ? "anomalie" : state.currentTab === "detail" ? "article" : state.currentTab === "rupture" ? "produit" : "ligne";
         const gammeTag = state.gammeFilter ? `<span class="badge-filters">— ${escapeHtml(state.gammeFilter)}</span>` : "";
         return `<span class="livraison-badge"><span class="badge-count">${count}</span> ${label}${count !== 1 ? "s" : ""} ${gammeTag}</span>`;
       })() : "";
@@ -1237,10 +1275,10 @@
       document.getElementById("tableTools").innerHTML = `
         ${technicianSearch}
         ${stockSearch}
+        ${ruptureSearch}
         ${livraisonTools}
         ${countBadge}
         ${gammeSelect}
-        <button id="exportReporting" class="primary" type="button">Générer l'AD STOCK KUBE</button>
         <button id="exportCsv" type="button">Exporter CSV</button>
         <button id="exportXlsx" type="button">Exporter Excel</button>
       `;
@@ -1317,7 +1355,14 @@
           renderTable();
         });
       }
-      document.getElementById("exportReporting").addEventListener("click", exportSamsungReporting);
+      const ruptureSearchEl = document.getElementById("ruptureSearch");
+      if (ruptureSearchEl) {
+        ruptureSearchEl.addEventListener("input", () => {
+          state.ruptureSearch = ruptureSearchEl.value;
+          state.page = 1;
+          renderTable();
+        });
+      }
       document.getElementById("exportCsv").addEventListener("click", () => exportCsv(state.filteredRows, `${state.currentTab}.csv`));
       document.getElementById("exportXlsx").addEventListener("click", () => exportXlsx(state.filteredRows, `${state.currentTab}.xlsx`));
 
@@ -1445,6 +1490,7 @@
     function restoreHistoryImport(id) {
       const entry = state.history.find((item) => item.id === id);
       if (!entry) return;
+      showLoading();
       saveJson(CURRENT_IMPORT_KEY, entry);
       loadRows(entry.rows, entry.fileName, { importedAt: entry.importedAt, keepTab: true });
       state.currentTab = "history";
@@ -1498,7 +1544,12 @@
       renderTable();
     }
 
+    function showLoading() {
+      document.getElementById("dataTable").innerHTML = `<tr><td colspan="20" style="text-align:center;padding:2rem;color:#666">En chargement…</td></tr>`;
+    }
+
     function handleFile(file) {
+      showLoading();
       const reader = new FileReader();
       reader.onload = (event) => {
         const data = event.target.result;
