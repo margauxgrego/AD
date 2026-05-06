@@ -152,6 +152,8 @@
     .kpi.gray { border-left-color: var(--gray); }
     .kpi.blue { border-left-color: var(--blue); }
     .kpi.critical { animation: pulse-border 1.8s ease-in-out infinite; }
+    .kpi.kpi-blue-filled { background:#b8d8f0; border-left-color:#5a9ec9; }
+    .kpi.kpi-blue-filled strong, .kpi.kpi-blue-filled span { color:#1a3f5c; }
     .kpi.kpi-red-filled { background:#e07878; border-left-color:#c62828; }
     .kpi.kpi-red-filled strong, .kpi.kpi-red-filled span { color:#fff; }
     .kpi.kpi-orange-filled { background:#FFAA77; border-left-color:#FF7733; }
@@ -618,9 +620,11 @@
 
     const tabs = [
       { id: "detail", label: "SODA" },
-      { id: "rupture", label: "❌ Ruptures" },
       { id: "livraisons", label: "📦 Livraisons" },
-      { id: "anomalies", label: "Anomalies" },
+      { id: "rupture", label: "❌ Ruptures" },
+      { id: "low", label: "🟡 Stock 5 à 15" },
+      { id: "critical", label: "🟠 Stock 0 à 5" },
+      { id: "anomalies", label: "⚠️ Anomalies" },
       { id: "help", label: "Mode d'emploi" }
     ];
 
@@ -632,6 +636,8 @@
       detail: [["alertLabel", "Statut alerte"], ...REQUIRED_COLUMNS.filter((c) => c !== "ID").map((c) => [c, c])],
       technicians: [["technicien", "Technicien"], ["LIVRAISON", "Date"], ["week", "Semaine ISO"], ["year", "Année"], ["IMEI", "IMEI"], ["SN", "SN"], ["MARKETING_NAME", "Produit"], ["PRODUIT", "Produit court"], ["GAMME", "Gamme"], ["SKU", "SKU"], ["STATUT", "Statut"], ["EMPLACEMENT", "Emplacement"], ["ENSEIGNE", "Enseigne"], ["MAGASIN", "Magasin"], ["MOBILIER", "Mobilier"], ["techniciens", "Equipe"]],
       planning: [["technicien", "Technicien"], ["week", "Semaine ISO"], ["year", "Année"], ["MAGASIN", "Magasin"], ["ENSEIGNE", "Enseigne"], ["MOBILIER", "Mobilier"], ["SKU", "SKU"], ["MARKETING_NAME", "Produit"]],
+      low: [["alertLabel", "Statut alerte"], ...REQUIRED_COLUMNS.filter((c) => c !== "ID").map((c) => [c, c])],
+      critical: [["alertLabel", "Statut alerte"], ...REQUIRED_COLUMNS.filter((c) => c !== "ID").map((c) => [c, c])],
       rupture: [["canonicalName", "Produit"], ["gamme", "Gamme"], ["qtyKube", "Stock Kube"], ["ruptureStandby", "Standby"], ["ruptureLivraison", "Livraison"], ["ruptureMagasin", "Magasin"], ["ruptureVol", "Vol"], ["ruptureProjet", "Projet"]],
       anomalies: [["type", "Type"], ["ID", "ID"], ["SKU", "SKU"], ["STATUT", "Statut"], ["EMPLACEMENT", "Emplacement"], ["detail", "Détail"]],
       livraisons: [
@@ -898,13 +904,13 @@
         ["physical", "Stock physique", m.physical, "blue", () => state.rows.filter(isPhysicalStock), "Tous les articles chez Kube Design"],
         ["owned", "Stock Kube", m.owned, "green", () => state.rows.filter(isOwnedStock)],
         ["standby", "Stock standby", m.standby, "orange", () => state.rows.filter(isStandbyStock)],
-        ["incoming", "📦 Livraisons", m.incoming, "blue", "livraisons"],
+        ["incoming", "📦 Livraisons", m.incoming, "kpi-blue-filled", "livraisons"],
         ["project", "Réservé projet", m.project, "blue", () => state.rows.filter((r) => r.STATUT === "PROJET" && r.EMPLACEMENT === "KUBE DESIGN")],
         ["hs", "HS", m.hs, "red", () => state.rows.filter((r) => r.STATUT === "HS")],
-        ["low", "Stock de 5 à 15", m.low, "kpi-darkorange-filled", () => state.skuRows.filter((r) => r.alert === "low").sort((a, b) => a.qtyTotal - b.qtyTotal)],
-        ["critical", "Stock de 0 à 5", m.critical, "kpi-orange-filled", () => state.skuRows.filter((r) => r.alert === "critical").sort((a, b) => a.qtyTotal - b.qtyTotal)],
+        ["low", "Stock de 5 à 15", m.low, "kpi-darkorange-filled", "low"],
+        ["critical", "Stock de 0 à 5", m.critical, "kpi-orange-filled", "critical"],
         ["rupture", "Ruptures", m.rupture, "kpi-red-filled", "rupture"],
-        ["anomalies", "Anomalies", m.anomalies, "red", "anomalies"]
+        ["anomalies", "⚠️ Anomalies", m.anomalies, "red", "anomalies"]
       ];
       document.getElementById("kpiGrid").innerHTML = kpis.map(([id, label, value, color, , def]) =>
         `<button class="kpi ${color}" type="button" data-kpi="${id}"><strong>${value}</strong><span>${label}</span>${def ? `<span class="kpi-def">${escapeHtml(def)}</span>` : ""}</button>`
@@ -968,6 +974,16 @@
           intro: "Articles avec STATUT = LIVRAISON. Recherche par IMEI, SN, produit, enseigne.",
           tools: "livraisons"
         },
+        low: {
+          title: "Stock de 5 à 15",
+          intro: "Articles RDU/LDU en Stock Kube dont le stock du MARKETING_NAME est entre 5 et 15 unités.",
+          tools: "stock"
+        },
+        critical: {
+          title: "Stock de 0 à 5",
+          intro: "Articles RDU/LDU en Stock Kube dont le stock du MARKETING_NAME est entre 0 et 5 unités.",
+          tools: "stock"
+        },
         rupture: {
           title: "Ruptures stock kube",
           intro: "Produits avec 0 unité en Stock Kube mais présents dans un autre statut (Standby, Livraison, Magasin, Vol, Projet).",
@@ -1013,6 +1029,8 @@
       if (state.currentTab === "technicians") return technicianRows();
       if (state.currentTab === "livraisons") return livraisonsRows();
       if (state.currentTab === "planning") return planningRows();
+      if (state.currentTab === "low") return state.rows.filter((r) => r.alert === "low");
+      if (state.currentTab === "critical") return state.rows.filter((r) => r.alert === "critical");
       if (state.currentTab === "rupture") return state.skuRows.filter((r) => r.alert === "rupture");
       if (state.currentTab === "anomalies") return state.anomalies;
       if (state.currentTab === "help") return helpRows();
@@ -1184,7 +1202,7 @@
       const stockSearch = config.tools === "stock" ? (() => {
         const count = state.filteredRows.length;
         const gammeTag = state.gammeFilter ? `<span class="badge-filters">— ${escapeHtml(state.gammeFilter)}</span>` : "";
-        const tabLabel = state.currentTab === "detail" ? "article" : state.currentTab === "rupture" ? "rupture" : state.currentTab === "anomalies" ? "anomalie" : "ligne";
+        const tabLabel = state.currentTab === "detail" ? "article" : state.currentTab === "low" || state.currentTab === "critical" ? "article" : state.currentTab === "rupture" ? "rupture" : state.currentTab === "anomalies" ? "anomalie" : "ligne";
         const badge = `<span class="livraison-badge"><span class="badge-count">${count}</span> ${tabLabel}${count !== 1 ? "s" : ""} ${gammeTag}</span>`;
         return `
           <input id="detailSearch" type="search" placeholder="Rechercher dans toutes les colonnes…" value="${escapeHtml(state.detailSearch)}" style="min-width:220px">
@@ -1202,7 +1220,7 @@
             <option value="ok" ${state.detailAlerte === "ok" ? "selected" : ""}>Stock OK</option>
             <option value="low" ${state.detailAlerte === "low" ? "selected" : ""}>Stock de 5 à 15</option>
             <option value="critical" ${state.detailAlerte === "critical" ? "selected" : ""}>Stock de 0 à 5</option>
-            ${(state.currentTab !== "detail" && state.currentTab !== "anomalies") ? `<option value="rupture" ${state.detailAlerte === "rupture" ? "selected" : ""}>Rupture</option>` : ""}
+            ${(!["detail", "anomalies", "low", "critical"].includes(state.currentTab)) ? `<option value="rupture" ${state.detailAlerte === "rupture" ? "selected" : ""}>Rupture</option>` : ""}
           </select>
         `;
       })() : "";
