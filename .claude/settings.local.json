@@ -11,7 +11,9 @@
       "Bash(pip show *)",
       "Bash(where python3 *)",
       "Bash(where python *)",
-      "Bash(where py *)"
+      "Bash(where py *)",
+      "Bash(powershell -Command \"\\(Get-Content 'D:\\\\SERVICE PRODUIT LOGICIEL\\\\index.html'\\).Count\")",
+      "PowerShell(\\(Get-Content \"D:\\\\SERVICE PRODUIT LOGICIEL\\\\index.html\"\\).Count)"
     ]
   }
 }

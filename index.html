@@ -151,9 +151,13 @@
     .kpi.red { border-left-color: var(--red); }
     .kpi.gray { border-left-color: var(--gray); }
     .kpi.blue { border-left-color: var(--blue); }
-    .kpi.critical {
-      animation: pulse-border 1.8s ease-in-out infinite;
-    }
+    .kpi.critical { animation: pulse-border 1.8s ease-in-out infinite; }
+    .kpi.kpi-red-filled { background:#e07878; border-left-color:#c62828; }
+    .kpi.kpi-red-filled strong, .kpi.kpi-red-filled span { color:#fff; }
+    .kpi.kpi-orange-filled { background:#FFAA77; border-left-color:#FF7733; }
+    .kpi.kpi-orange-filled strong, .kpi.kpi-orange-filled span { color:#fff; }
+    .kpi.kpi-darkorange-filled { background:#FFCC88; border-left-color:#FFAA44; }
+    .kpi.kpi-darkorange-filled strong, .kpi.kpi-darkorange-filled span { color:#fff; }
 
     @keyframes pulse-border {
       0%, 100% { box-shadow: 0 0 0 rgba(198, 40, 40, 0); }
@@ -365,9 +369,10 @@
       white-space: nowrap;
     }
 
-    .pill.ok { color: var(--green); background: #e9f5ea; border-color: #c8e6c9; }
-    .pill.low { color: var(--orange); background: #fff4df; border-color: #f4cf91; }
-    .pill.critical { color: var(--red); background: #fdeaea; border-color: #efb5b5; }
+    .pill.ok { color: var(--muted); background: var(--panel); border-color: var(--line); }
+    .pill.low { color: #fff; background: #FFCC88; border-color: #FFAA44; }
+    .pill.critical { color: #fff; background: #FFAA77; border-color: #FF7733; }
+    .pill.rupture { color: #fff; background: #e07878; border-color: #c62828; }
     .pill.zero { color: #4f5864; background: #eef1f4; border-color: #d6dce3; }
 
     .livraison-badge {
@@ -562,9 +567,6 @@
     const KNOWN_STATUSES = new Set(["STOCK KUBE", "STANDBY", "PROJET", "HS", "LIVRAISON", "CDM IDF", "CDM PROVINCE", "MAGASIN", "VOL"]);
     const KNOWN_LOCATIONS = new Set(["KUBE DESIGN", "LIVRAISON", "MAGASIN"]);
     const PAGE_SIZE = 100;
-    const CURRENT_IMPORT_KEY = "kubeStockCurrentImport";
-    const IMPORT_HISTORY_KEY = "kubeStockImportHistory";
-    const IMPORT_HISTORY_LIMIT = 8;
 
     const demoRows = [
       row("1", "S SERIES", "S25 ULTRA", "RDU", "GRIS", "Galaxy S25 Ultra Gris", "SM-S938BZADEUC", "351111111111111", "351111111111111", "STOCK KUBE", "KUBE DESIGN", "DHL", "12/04/2026", "FNAC", "FNAC LYON", "PIERRE CDM W18 2026", "TABLE", ""),
@@ -612,7 +614,6 @@
       charts: {},
       drawerRows: [],
       drawerTitle: "",
-      history: []
     };
 
     const tabs = [
@@ -633,7 +634,6 @@
       planning: [["technicien", "Technicien"], ["week", "Semaine ISO"], ["year", "Année"], ["MAGASIN", "Magasin"], ["ENSEIGNE", "Enseigne"], ["MOBILIER", "Mobilier"], ["SKU", "SKU"], ["MARKETING_NAME", "Produit"]],
       rupture: [["canonicalName", "Produit"], ["gamme", "Gamme"], ["qtyKube", "Stock Kube"], ["ruptureStandby", "Standby"], ["ruptureLivraison", "Livraison"], ["ruptureMagasin", "Magasin"], ["ruptureVol", "Vol"], ["ruptureProjet", "Projet"]],
       anomalies: [["type", "Type"], ["ID", "ID"], ["SKU", "SKU"], ["STATUT", "Statut"], ["EMPLACEMENT", "Emplacement"], ["detail", "Détail"]],
-      history: [["importedAtLabel", "Date d'import"], ["fileName", "Fichier"], ["rowCount", "Lignes"], ["physical", "Stock physique"], ["owned", "Stock Kube"], ["standby", "Standby"], ["status", "Statut"], ["action", "Action"]],
       livraisons: [
         ["MARKETING_NAME", "Produit"], ["SKU", "SKU"], ["IMEI", "IMEI"], ["SN", "SN"],
         ["ENSEIGNE", "Enseigne"], ["MAGASIN", "Magasin"], ["EXPEDITEUR", "Expéditeur"],
@@ -738,11 +738,11 @@
       return rowData.STATUT === "STANDBY" && rowData.EMPLACEMENT === "KUBE DESIGN" && isCountableArticle(rowData);
     }
 
-    function getGroupKey(rowData, ambiguousSkuSet) {
+    function getGroupKey(rowData) {
       if (isFactice(rowData)) {
         return [rowData.GAMME || "", rowData.PRODUIT || "", "FACTICE"].join(" | ");
       }
-      return [rowData.GAMME || "", rowData.PRODUIT || ""].join(" | ");
+      return rowData.MARKETING_NAME || [rowData.GAMME || "", rowData.PRODUIT || ""].join(" | ");
     }
 
     function buildSkuRows(rows) {
@@ -756,7 +756,7 @@
       const groups = new Map();
       rows.forEach((rowData) => {
         if (!isCountableArticle(rowData)) return;
-        const key = getGroupKey(rowData, ambiguousSkuSet);
+        const key = getGroupKey(rowData);
         if (!groups.has(key)) {
           groups.set(key, {
             key,
@@ -773,7 +773,7 @@
             qtyKube: 0,
             qtyStandby: 0,
             qtyTotal: 0,
-            qtyByStatus: { STANDBY: 0, LIVRAISON: 0, MAGASIN: 0, VOL: 0, PROJET: 0 },
+            qtyByStatus: { STANDBY: 0, LIVRAISON: 0, MAGASIN: 0, VOL: 0, PROJET: 0, HS: 0 },
             totalSeen: 0,
             names: new Map()
           });
@@ -786,9 +786,10 @@
         if (rowData.TYPE) group.types.add(rowData.TYPE);
         if (!group.gamme && rowData.GAMME) group.gamme = rowData.GAMME;
         if (rowData.MARKETING_NAME) group.names.set(rowData.MARKETING_NAME, (group.names.get(rowData.MARKETING_NAME) || 0) + 1);
-        if (isOwnedStock(rowData)) group.qtyKube += 1;
+        const isAlertable = rowData.TYPE === "RDU" || rowData.TYPE === "LDU";
+        if (isOwnedStock(rowData)) group.qtyKube += isAlertable ? 1 : 0;
         if (isStandbyStock(rowData)) group.qtyStandby += 1;
-        if (isCountableArticle(rowData) && Object.prototype.hasOwnProperty.call(group.qtyByStatus, rowData.STATUT)) group.qtyByStatus[rowData.STATUT] += 1;
+        if (isAlertable && isCountableArticle(rowData) && Object.prototype.hasOwnProperty.call(group.qtyByStatus, rowData.STATUT)) group.qtyByStatus[rowData.STATUT] += 1;
       });
       return [...groups.values()].map((group) => {
         group.qtyTotal = group.qtyKube + group.qtyStandby;
@@ -819,11 +820,11 @@
     }
 
     function alertForQty(qtyKube, qtyByStatus) {
-      if (qtyKube >= 16) return { id: "ok", label: "OK" };
-      if (qtyKube >= 5) return { id: "low", label: "Bas" };
-      if (qtyKube >= 1) return { id: "critical", label: "Critique" };
-      const hasElsewhere = qtyByStatus && ["STANDBY", "LIVRAISON", "MAGASIN", "VOL", "PROJET"].some(s => qtyByStatus[s] > 0);
-      return hasElsewhere ? { id: "rupture", label: "Rupture" } : { id: "zero", label: "Épuisé" };
+      if (qtyKube > 15) return { id: "ok", label: "" };
+      if (qtyKube >= 6) return { id: "low", label: "Stock de 5 à 15" };
+      if (qtyKube >= 1) return { id: "critical", label: "Stock de 0 à 5" };
+      const hasElsewhere = qtyByStatus && Object.values(qtyByStatus).some(v => v > 0);
+      return hasElsewhere ? { id: "rupture", label: "Rupture" } : { id: "", label: "" };
     }
 
     function detectAnomalies(rows) {
@@ -867,8 +868,7 @@
         ok: skuRows.filter((r) => r.alert === "ok").length,
         low: skuRows.filter((r) => r.alert === "low").length,
         critical: skuRows.filter((r) => r.alert === "critical").length,
-        zero: skuRows.filter((r) => r.alert === "zero").length,
-        rupture: skuRows.filter((r) => r.alert === "rupture").length,
+          rupture: skuRows.filter((r) => r.alert === "rupture").length,
         project: rows.filter((r) => r.STATUT === "PROJET" && r.EMPLACEMENT === "KUBE DESIGN").length,
         hs: rows.filter((r) => r.STATUT === "HS").length,
         incoming: rows.filter((r) => r.STATUT === "LIVRAISON").length,
@@ -901,9 +901,9 @@
         ["incoming", "📦 Livraisons", m.incoming, "blue", "livraisons"],
         ["project", "Réservé projet", m.project, "blue", () => state.rows.filter((r) => r.STATUT === "PROJET" && r.EMPLACEMENT === "KUBE DESIGN")],
         ["hs", "HS", m.hs, "red", () => state.rows.filter((r) => r.STATUT === "HS")],
-        ["low", "Stock 15 à 5", m.low, "orange", () => state.skuRows.filter((r) => r.alert === "low").sort((a, b) => a.qtyTotal - b.qtyTotal)],
-        ["critical", "Stock 5 à 0", m.critical, "red critical", () => state.skuRows.filter((r) => r.alert === "critical").sort((a, b) => a.qtyTotal - b.qtyTotal)],
-        ["rupture", "Ruptures", m.rupture, "red", "rupture"],
+        ["low", "Stock de 5 à 15", m.low, "kpi-darkorange-filled", () => state.skuRows.filter((r) => r.alert === "low").sort((a, b) => a.qtyTotal - b.qtyTotal)],
+        ["critical", "Stock de 0 à 5", m.critical, "kpi-orange-filled", () => state.skuRows.filter((r) => r.alert === "critical").sort((a, b) => a.qtyTotal - b.qtyTotal)],
+        ["rupture", "Ruptures", m.rupture, "kpi-red-filled", "rupture"],
         ["anomalies", "Anomalies", m.anomalies, "red", "anomalies"]
       ];
       document.getElementById("kpiGrid").innerHTML = kpis.map(([id, label, value, color, , def]) =>
@@ -944,7 +944,7 @@
           intro: "Suivi du stock disponible, des produits KUBE DESIGN, standby, factices et alertes par PRODUIT.",
           showImport: true,
           charts: "stock",
-          tools: "standard"
+          tools: "stock"
         },
         detail: {
           title: "SODA",
@@ -961,7 +961,7 @@
         planning: {
           title: "Plannings",
           intro: "Vue planning issue de la colonne PLANNING, avec séparation automatique des interventions à deux techniciens.",
-          tools: "standard"
+          tools: "stock"
         },
         livraisons: {
           title: "Livraisons",
@@ -971,21 +971,16 @@
         rupture: {
           title: "Ruptures stock kube",
           intro: "Produits avec 0 unité en Stock Kube mais présents dans un autre statut (Standby, Livraison, Magasin, Vol, Projet).",
-          tools: "rupture"
+          tools: "stock"
         },
         anomalies: {
           title: "Anomalies",
           intro: "Contrôles automatiques : statuts incohérents, SKU manquants non factices, doublons IMEI/SN et valeurs non reconnues.",
-          tools: "standard"
-        },
-        history: {
-          title: "Historique des imports",
-          intro: "Imports sauvegardés dans le navigateur. Le dernier import est repris automatiquement à l’ouverture.",
-          tools: "history"
+          tools: "stock"
         },
         help: {
           title: "Mode d'emploi",
-          intro: "Explication des indicateurs, graphiques, alertes, factices, techniciens, historique et reporting.",
+          intro: "Explication des indicateurs, graphiques, alertes, factices, techniciens et reporting.",
           tools: "none"
         }
       };
@@ -1008,7 +1003,6 @@
       if (tab === "livraisons") return { key: "LIVRAISON", dir: "asc" };
       if (tab === "technicians") return { key: "LIVRAISON", dir: "desc" };
       if (tab === "planning") return { key: "week", dir: "asc" };
-      if (tab === "history") return { key: "importedAt", dir: "desc" };
       if (tab === "help") return { key: "theme", dir: "asc" };
       if (tab === "rupture") return { key: "canonicalName", dir: "asc" };
       return { key: "__index", dir: "asc" };
@@ -1021,7 +1015,6 @@
       if (state.currentTab === "planning") return planningRows();
       if (state.currentTab === "rupture") return state.skuRows.filter((r) => r.alert === "rupture");
       if (state.currentTab === "anomalies") return state.anomalies;
-      if (state.currentTab === "history") return importHistoryRows();
       if (state.currentTab === "help") return helpRows();
       return state.rows;
     }
@@ -1032,7 +1025,7 @@
         sr.names.forEach((_, name) => alertMap.set(name, { alert: sr.alert, alertLabel: sr.alertLabel }));
       });
       rows.forEach((r) => {
-        if (r.STATUT !== "STOCK KUBE") { r.alertLabel = ""; r.alert = ""; return; }
+        if (r.STATUT !== "STOCK KUBE" || r.EMPLACEMENT !== "KUBE DESIGN" || (r.TYPE !== "RDU" && r.TYPE !== "LDU")) { r.alertLabel = ""; r.alert = ""; return; }
         const info = r.MARKETING_NAME ? alertMap.get(r.MARKETING_NAME) : null;
         r.alertLabel = info ? info.alertLabel : "";
         r.alert = info ? info.alert : "";
@@ -1045,35 +1038,26 @@
 
     function helpRows() {
       return [
-        { theme: "Import", description: "À chaque ouverture, aucune donnée n’est chargée. Importez votre fichier SODA (.xls/.xlsx/.csv) pour travailler. Chaque import remplace le précédent. Les 8 derniers imports sont conservés dans l’historique." },
-        { theme: "Stock physique", description: "Tous les articles physiquement présents chez KUBE DESIGN et comptables : STATUT = STOCK KUBE, STANDBY, PROJET, HS ou CDM IDF/PROVINCE avec EMPLACEMENT = KUBE DESIGN. Les factices et accessoires sans IMEI/SN sont exclus." },
-        { theme: "Stock Kube", description: "Articles avec STATUT = STOCK KUBE et EMPLACEMENT = KUBE DESIGN." },
-        { theme: "Stock standby", description: "Articles avec STATUT = STANDBY et EMPLACEMENT = KUBE DESIGN." },
-        { theme: "Livraisons", description: "Articles avec STATUT = LIVRAISON. L’onglet Livraisons permet de filtrer par enseigne, expéditeur, gamme et recherche libre (toutes colonnes)." },
-        { theme: "Réservé projet", description: "Articles avec STATUT = PROJET et EMPLACEMENT = KUBE DESIGN." },
-        { theme: "HS", description: "Articles avec STATUT = HS — produits Grade D." },
-        { theme: "Alertes stock", description: "Les alertes sont calculées par PRODUIT (MARKETING_NAME) sur la base du Stock Kube uniquement (STATUT = STOCK KUBE, EMPLACEMENT = KUBE DESIGN). Seuils : OK = 16 et +, Bas = 5 à 15, Critique = 1 à 4. Seules les lignes STOCK KUBE affichent une alerte dans l’onglet SODA." },
-        { theme: "Rupture", description: "Un produit est en rupture quand il a 0 unité en Stock Kube mais qu’il en reste dans au moins un autre statut (Standby, Livraison, Magasin, Vol, Projet). L’indicateur Ruptures en haut ouvre l’onglet ❌ Ruptures qui liste ces produits avec la répartition par statut." },
-        { theme: "Épuisé", description: "Un produit est épuisé quand il a 0 unité en Stock Kube ET aucune unité dans aucun autre statut." },
-        { theme: "Factices", description: "Un article est factice si SKU = FACTICE, TYPE = FACTICE, ou s’il n’a ni IMEI ni SN (sauf accessoires ACC qui sont de vrais produits sans IMEI/SN)." },
-        { theme: "Onglet SODA", description: "Toutes les lignes importées depuis SODA. Filtres disponibles : recherche libre (toutes colonnes), statut, emplacement, statut alerte, gamme. La colonne Statut alerte n’est remplie que pour les lignes STOCK KUBE." },
-        { theme: "Onglet Ruptures", description: "Liste les produits avec 0 unité en Stock Kube mais présents dans un autre statut. Colonnes : Standby, Livraison, Magasin, Vol, Projet. Accessible via l’indicateur Ruptures ou l’onglet ❌ Ruptures." },
-        { theme: "Anomalies", description: "L’onglet Anomalies liste les incohérences détectées : statuts incohérents avec l’emplacement, SKU manquants, valeurs non reconnues." },
-        { theme: "Graphiques", description: "Chaque graphique dans l’onglet SODA est cliquable. Cliquer sur une barre ou une portion ouvre le détail filtré correspondant dans un panneau latéral." },
-        { theme: "Indicateurs", description: "Chaque indicateur du haut est cliquable : Stock physique, Stock Kube, Standby, Projet, HS ouvrent un panneau détail. Livraisons et Ruptures ouvrent leur onglet respectif. Anomalies ouvre l’onglet Anomalies." },
-        { theme: "Générer l’AD STOCK KUBE", description: "Exporte un fichier .xls avec deux feuilles : TCD (pivot MARKETING_NAME × STATUT, TYPE = RDU/LDU uniquement) et BDD (toutes les lignes, 17 colonnes SODA). Pour ajouter la navigation interactive (double-clic sur cellule → détail), exécuter le script ajouter-vba-tcd.ps1 sur le fichier exporté." },
-        { theme: "Recherche universelle", description: "La barre de recherche globale (en haut) et les barres par onglet cherchent dans toutes les colonnes : GAMME, PRODUIT, TYPE, COLORIS, MARKETING_NAME, SKU, IMEI, SN, STATUT, EMPLACEMENT, EXPEDITEUR, LIVRAISON, ENSEIGNE, MAGASIN, PLANNING, MOBILIER, COMMENTAIRE." }
+        { theme: "Charger les données", description: "Au démarrage, l’outil est vide. Glissez votre fichier SODA (Excel ou CSV) dans la zone d’import ou cliquez pour le sélectionner. Les données se chargent immédiatement. Chaque nouvel import remplace les données courantes." },
+        { theme: "Stock physique", description: "Nombre total d’articles présents physiquement chez Kube Design (tous statuts confondus : Stock Kube, Standby, Projet, HS, CDM). Les produits factices et les accessoires sans numéro de série sont exclus." },
+        { theme: "Stock Kube", description: "Produits disponibles immédiatement chez Kube Design, prêts à être expédiés." },
+        { theme: "Stock Standby", description: "Produits présents chez Kube Design mais mis en attente, non disponibles à l’expédition." },
+        { theme: "Livraisons", description: "Produits actuellement en cours de livraison vers un magasin. Cliquez sur l’indicateur ou l’onglet Livraisons pour voir le détail et filtrer par enseigne ou expéditeur." },
+        { theme: "Réservé projet", description: "Produits mis de côté pour un projet spécifique, non disponibles pour d’autres commandes." },
+        { theme: "HS", description: "Produits hors service (Grade D), non utilisables pour une mise en rayon." },
+        { theme: "Niveaux d’alerte", description: "Les alertes concernent uniquement les RDU et LDU disponibles en Stock Kube. « Stock de 0 à 5 » : il reste entre 1 et 5 unités, attention. « Stock de 5 à 15 » : stock bas, à surveiller. Au-dessus de 15 : aucun badge affiché, le stock est suffisant." },
+        { theme: "Rupture", description: "Un produit est en rupture quand il n’y a plus aucune unité disponible en Stock Kube, mais qu’il en existe encore ailleurs (en standby, en livraison, en magasin…). L’onglet ❌ Ruptures montre où se trouvent ces unités." },
+        { theme: "Produits factices", description: "Un produit est considéré comme factice (présentoir, maquette) s’il est marqué FACTICE ou s’il n’a pas de numéro IMEI ni de numéro de série. Exception : les accessoires (ACC) sans numéro sont de vrais produits." },
+        { theme: "Onglet SODA", description: "Vue complète de toutes les lignes du fichier importé. Utilisez la barre de recherche pour trouver un produit, un IMEI, un magasin, etc. Les filtres Statut, Emplacement, Alerte et Gamme sont disponibles sur tous les onglets." },
+        { theme: "Onglet Ruptures", description: "Liste tous les produits (RDU/LDU) absents du Stock Kube mais présents ailleurs. Pour chaque produit, vous voyez combien d’unités sont en Standby, Livraison, Magasin, Vol ou Projet." },
+        { theme: "Onglet Anomalies", description: "L’outil détecte automatiquement les erreurs dans les données : statut incohérent avec l’emplacement, référence SKU manquante, numéro IMEI ou SN en double. Vérifiez cet onglet après chaque import." },
+        { theme: "Graphiques", description: "Les graphiques sont cliquables. Un clic sur une barre ou une portion de camembert ouvre le détail des produits correspondants dans un panneau latéral." },
+        { theme: "Indicateurs cliquables", description: "Tous les chiffres en haut de page sont cliquables. Stock physique, Stock Kube, Standby, Projet et HS ouvrent un panneau détail. Livraisons et Ruptures ouvrent leur onglet. Anomalies ouvre l’onglet Anomalies." },
+        { theme: "Générer l’AD STOCK KUBE", description: "Exporte un fichier Excel avec deux feuilles : le TCD (tableau croisé par produit et statut, RDU/LDU uniquement) et la BDD (toutes les lignes brutes). Utilisez le bouton en haut à droite de la page." },
+        { theme: "Recherche", description: "La barre de recherche en haut cherche dans toutes les données en même temps. Vous pouvez taper un nom de produit, un IMEI, un numéro de série, un magasin, une enseigne ou n’importe quelle autre information." }
       ];
     }
 
-    function importHistoryRows() {
-      return state.history.map((entry) => ({
-        ...entry,
-        importedAtLabel: formatDateTime(entry.importedAt),
-        status: entry.id === currentImportId() ? "Import actif" : "",
-        action: entry.id === currentImportId() ? "Actif" : "Charger"
-      }));
-    }
 
     function planningRows() {
       return state.rows.filter((r) => r.__planning.raw).flatMap((r) => {
@@ -1101,17 +1085,14 @@
       const q = state.globalSearch.toUpperCase();
       return rows.filter((r) => {
         if (gamme && r.GAMME !== gamme && r.gamme !== gamme) return false;
-        if (state.currentTab === "detail" && state.detailSearch) {
+        if (state.detailSearch) {
           const dq = state.detailSearch.toUpperCase();
-          if (!r.__search || !r.__search.includes(dq)) return false;
+          const searchVal = r.__search || Object.values(r).filter(v => typeof v !== "object").join(" ").toUpperCase();
+          if (!searchVal.includes(dq)) return false;
         }
-        if (state.currentTab === "detail" && state.detailStatut && r.STATUT !== state.detailStatut) return false;
-        if (state.currentTab === "detail" && state.detailEmplacement && r.EMPLACEMENT !== state.detailEmplacement) return false;
-        if (state.currentTab === "detail" && state.detailAlerte && r.alert !== state.detailAlerte) return false;
-        if (state.currentTab === "rupture" && state.ruptureSearch) {
-          const rq = state.ruptureSearch.toUpperCase();
-          if (!String(r.canonicalName || "").toUpperCase().includes(rq) && !String(r.gamme || "").toUpperCase().includes(rq)) return false;
-        }
+        if (state.detailStatut && r.STATUT !== state.detailStatut) return false;
+        if (state.detailEmplacement && r.EMPLACEMENT !== state.detailEmplacement) return false;
+        if (state.detailAlerte && r.alert !== state.detailAlerte) return false;
         if (state.currentTab === "technicians" && state.techSearch) {
           const techQuery = state.techSearch.toUpperCase();
           if (!r.__search || !r.__search.includes(techQuery)) return false;
@@ -1158,7 +1139,6 @@
           renderTable();
         });
       });
-      attachHistoryActions();
       document.getElementById("pageInfo").textContent = `${rows.length} lignes - page ${state.page}/${totalPages}`;
       document.getElementById("prevPage").disabled = state.page <= 1;
       document.getElementById("nextPage").disabled = state.page >= totalPages;
@@ -1174,21 +1154,11 @@
 
     function cellHtml(rowData, key) {
       const value = rowData[key];
-      if (key === "action" && rowData.id) {
-        const disabled = rowData.id === currentImportId() ? "disabled" : "";
-        return `<button type="button" data-load-import="${escapeHtml(rowData.id)}" ${disabled}>${escapeHtml(value || "")}</button>`;
-      }
       if (key === "alertLabel") {
-        const cls = rowData.alert === "ok" ? "ok" : rowData.alert === "low" ? "low" : rowData.alert === "critical" ? "critical" : "zero";
+        const cls = rowData.alert === "ok" ? "ok" : rowData.alert === "low" ? "low" : rowData.alert === "critical" ? "critical" : rowData.alert === "rupture" ? "rupture" : "zero";
         return `<span class="pill ${cls}">${escapeHtml(value || "")}</span>`;
       }
       return escapeHtml(value === null || value === undefined ? "" : String(value));
-    }
-
-    function attachHistoryActions() {
-      document.querySelectorAll("[data-load-import]").forEach((button) => {
-        button.addEventListener("click", () => restoreHistoryImport(button.dataset.loadImport));
-      });
     }
 
     function renderTableTools() {
@@ -1214,7 +1184,8 @@
       const stockSearch = config.tools === "stock" ? (() => {
         const count = state.filteredRows.length;
         const gammeTag = state.gammeFilter ? `<span class="badge-filters">— ${escapeHtml(state.gammeFilter)}</span>` : "";
-        const badge = `<span class="livraison-badge"><span class="badge-count">${count}</span> article${count !== 1 ? "s" : ""} ${gammeTag}</span>`;
+        const tabLabel = state.currentTab === "detail" ? "article" : state.currentTab === "rupture" ? "rupture" : state.currentTab === "anomalies" ? "anomalie" : "ligne";
+        const badge = `<span class="livraison-badge"><span class="badge-count">${count}</span> ${tabLabel}${count !== 1 ? "s" : ""} ${gammeTag}</span>`;
         return `
           <input id="detailSearch" type="search" placeholder="Rechercher dans toutes les colonnes…" value="${escapeHtml(state.detailSearch)}" style="min-width:220px">
           ${badge}
@@ -1228,17 +1199,14 @@
           </select>
           <select id="detailAlerte">
             <option value="">Tous statuts alerte</option>
-            <option value="ok" ${state.detailAlerte === "ok" ? "selected" : ""}>OK</option>
-            <option value="low" ${state.detailAlerte === "low" ? "selected" : ""}>Stock bas</option>
-            <option value="critical" ${state.detailAlerte === "critical" ? "selected" : ""}>Critique</option>
-            <option value="zero" ${state.detailAlerte === "zero" ? "selected" : ""}>Épuisé</option>
+            <option value="ok" ${state.detailAlerte === "ok" ? "selected" : ""}>Stock OK</option>
+            <option value="low" ${state.detailAlerte === "low" ? "selected" : ""}>Stock de 5 à 15</option>
+            <option value="critical" ${state.detailAlerte === "critical" ? "selected" : ""}>Stock de 0 à 5</option>
+            ${(state.currentTab !== "detail" && state.currentTab !== "anomalies") ? `<option value="rupture" ${state.detailAlerte === "rupture" ? "selected" : ""}>Rupture</option>` : ""}
           </select>
         `;
       })() : "";
 
-      const ruptureSearch = config.tools === "rupture" ? `
-        <input id="ruptureSearch" type="search" placeholder="Rechercher un produit…" value="${escapeHtml(state.ruptureSearch)}" style="min-width:220px">
-      ` : "";
 
       const livraisonTools = config.tools === "livraisons" ? (() => {
         const count = state.filteredRows.length;
@@ -1258,14 +1226,14 @@
         `;
       })() : "";
 
-      const gammeSelect = config.tools === "history" ? "" : `
+      const gammeSelect = `
         <select id="gammeFilter">
           <option value="">Toutes gammes</option>
           ${distinctGammes.map((g) => `<option value="${escapeHtml(g)}" ${state.gammeFilter === g ? "selected" : ""}>${escapeHtml(g)}</option>`).join("")}
         </select>
       `;
 
-      const countBadge = config.tools !== "livraisons" && config.tools !== "history" && config.tools !== "stock" ? (() => {
+      const countBadge = config.tools !== "livraisons" && config.tools !== "stock" ? (() => {
         const count = state.filteredRows.length;
         const label = state.currentTab === "anomalies" ? "anomalie" : state.currentTab === "detail" ? "article" : state.currentTab === "rupture" ? "produit" : "ligne";
         const gammeTag = state.gammeFilter ? `<span class="badge-filters">— ${escapeHtml(state.gammeFilter)}</span>` : "";
@@ -1275,7 +1243,6 @@
       document.getElementById("tableTools").innerHTML = `
         ${technicianSearch}
         ${stockSearch}
-        ${ruptureSearch}
         ${livraisonTools}
         ${countBadge}
         ${gammeSelect}
@@ -1351,14 +1318,6 @@
       if (livraisonExpediteur) {
         livraisonExpediteur.addEventListener("change", () => {
           state.livraisonExpediteur = livraisonExpediteur.value;
-          state.page = 1;
-          renderTable();
-        });
-      }
-      const ruptureSearchEl = document.getElementById("ruptureSearch");
-      if (ruptureSearchEl) {
-        ruptureSearchEl.addEventListener("input", () => {
-          state.ruptureSearch = ruptureSearchEl.value;
           state.page = 1;
           renderTable();
         });
@@ -1466,69 +1425,9 @@
       state.page = 1;
       state.sort = defaultSortForTab(state.currentTab);
       document.getElementById("fileMeta").textContent = `${fileName} - ${state.rows.length} lignes - import ${state.importedAt.toLocaleString("fr-FR")}`;
-      if (options.persist) persistImport(inputRows, fileName, state.importedAt);
       renderAll();
     }
 
-    function persistImport(rows, fileName, importedAt) {
-      const metrics = computeMetrics();
-      const payload = {
-        id: `import-${Date.now()}`,
-        fileName,
-        importedAt: importedAt.toISOString(),
-        rowCount: rows.length,
-        physical: metrics.physical,
-        owned: metrics.owned,
-        standby: metrics.standby,
-        rows
-      };
-      state.history = [payload, ...state.history.filter((entry) => entry.id !== payload.id)].slice(0, IMPORT_HISTORY_LIMIT);
-      saveJson(IMPORT_HISTORY_KEY, state.history);
-      saveJson(CURRENT_IMPORT_KEY, payload);
-    }
-
-    function restoreHistoryImport(id) {
-      const entry = state.history.find((item) => item.id === id);
-      if (!entry) return;
-      showLoading();
-      saveJson(CURRENT_IMPORT_KEY, entry);
-      loadRows(entry.rows, entry.fileName, { importedAt: entry.importedAt, keepTab: true });
-      state.currentTab = "history";
-      state.sort = defaultSortForTab("history");
-      renderAll();
-    }
-
-    function loadSavedState() {
-      state.history = readJson(IMPORT_HISTORY_KEY, []);
-      const current = readJson(CURRENT_IMPORT_KEY, null);
-      if (current && Array.isArray(current.rows)) {
-        loadRows(current.rows, current.fileName || "Import sauvegardé", { importedAt: current.importedAt });
-        return true;
-      }
-      return false;
-    }
-
-    function currentImportId() {
-      const current = readJson(CURRENT_IMPORT_KEY, null);
-      return current ? current.id : null;
-    }
-
-    function readJson(key, fallback) {
-      try {
-        const raw = localStorage.getItem(key);
-        return raw ? JSON.parse(raw) : fallback;
-      } catch (error) {
-        return fallback;
-      }
-    }
-
-    function saveJson(key, value) {
-      try {
-        localStorage.setItem(key, JSON.stringify(value));
-      } catch (error) {
-        console.warn("Import non sauvegardé dans le navigateur", error);
-      }
-    }
 
     function formatDateTime(value) {
       const date = new Date(value);
@@ -1557,7 +1456,7 @@
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(sheet, { defval: null, raw: true })
           .filter(r => Object.values(r).some(v => v !== null && v !== "" && v !== undefined));
-        loadRows(rows, file.name, { persist: true });
+        loadRows(rows, file.name);
       };
       reader.readAsArrayBuffer(file);
     }
@@ -1849,8 +1748,6 @@
       if (event.dataTransfer.files[0]) handleFile(event.dataTransfer.files[0]);
     });
 
-    state.history = readJson(IMPORT_HISTORY_KEY, []);
-    localStorage.removeItem(CURRENT_IMPORT_KEY);
     document.getElementById("fileMeta").textContent = "Aucune donnée — importez un fichier";
     renderAll();
   </script>
