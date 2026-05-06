@@ -136,6 +136,16 @@
       line-height: 1.2;
     }
 
+    .kpi-def {
+      display: block;
+      color: var(--muted);
+      font-size: 10px;
+      font-style: italic;
+      margin-top: 3px;
+      line-height: 1.2;
+      opacity: 0.8;
+    }
+
     .kpi.green { border-left-color: var(--green); }
     .kpi.orange { border-left-color: var(--orange); }
     .kpi.red { border-left-color: var(--red); }
@@ -360,6 +370,30 @@
     .pill.critical { color: var(--red); background: #fdeaea; border-color: #efb5b5; }
     .pill.zero { color: #4f5864; background: #eef1f4; border-color: #d6dce3; }
 
+    .livraison-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #e8f0fa;
+      border: 1px solid #b3caea;
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: 13px;
+      color: var(--blue-2);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .livraison-badge .badge-count {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--blue);
+    }
+    .livraison-badge .badge-filters {
+      font-weight: 400;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
     .pager {
       display: flex;
       justify-content: space-between;
@@ -559,12 +593,19 @@
       skuRows: [],
       anomalies: [],
       filteredRows: [],
-      currentTab: "sku",
+      currentTab: "detail",
       page: 1,
-      sort: { key: "qtyTotal", dir: "desc" },
+      sort: { key: "__index", dir: "asc" },
       globalSearch: "",
       techSearch: "",
+      detailSearch: "",
+      detailStatut: "",
+      detailEmplacement: "",
+      detailAlerte: "",
       gammeFilter: "",
+      livraisonSearch: "",
+      livraisonEnseigne: "",
+      livraisonExpediteur: "",
       fileName: "Données de démonstration",
       importedAt: new Date(),
       charts: {},
@@ -574,8 +615,8 @@
     };
 
     const tabs = [
-      { id: "sku", label: "Vue stock par produit" },
-      { id: "detail", label: "Vue détail unitaire" },
+      { id: "detail", label: "SODA" },
+      { id: "livraisons", label: "📦 Livraisons" },
       { id: "anomalies", label: "Anomalies" },
       { id: "help", label: "Mode d'emploi" }
     ];
@@ -585,11 +626,17 @@
         ["canonicalName", "Nom canonique"], ["sku", "SKU liés"], ["gamme", "Gamme"], ["qtyKube", "Qty Stock Kube"],
         ["qtyStandby", "Qty Standby"], ["qtyTotal", "Qty Total Dispo"], ["alertLabel", "Statut alerte"]
       ],
-      detail: REQUIRED_COLUMNS.map((c) => [c, c]),
+      detail: [["alertLabel", "Statut alerte"], ...REQUIRED_COLUMNS.filter((c) => c !== "ID").map((c) => [c, c])],
       technicians: [["technicien", "Technicien"], ["LIVRAISON", "Date"], ["week", "Semaine ISO"], ["year", "Année"], ["IMEI", "IMEI"], ["SN", "SN"], ["MARKETING_NAME", "Produit"], ["PRODUIT", "Produit court"], ["GAMME", "Gamme"], ["SKU", "SKU"], ["STATUT", "Statut"], ["EMPLACEMENT", "Emplacement"], ["ENSEIGNE", "Enseigne"], ["MAGASIN", "Magasin"], ["MOBILIER", "Mobilier"], ["techniciens", "Equipe"]],
       planning: [["technicien", "Technicien"], ["week", "Semaine ISO"], ["year", "Année"], ["MAGASIN", "Magasin"], ["ENSEIGNE", "Enseigne"], ["MOBILIER", "Mobilier"], ["SKU", "SKU"], ["MARKETING_NAME", "Produit"]],
       anomalies: [["type", "Type"], ["ID", "ID"], ["SKU", "SKU"], ["STATUT", "Statut"], ["EMPLACEMENT", "Emplacement"], ["detail", "Détail"]],
       history: [["importedAtLabel", "Date d'import"], ["fileName", "Fichier"], ["rowCount", "Lignes"], ["physical", "Stock physique"], ["owned", "Stock Kube"], ["standby", "Standby"], ["status", "Statut"], ["action", "Action"]],
+      livraisons: [
+        ["MARKETING_NAME", "Produit"], ["SKU", "SKU"], ["IMEI", "IMEI"], ["SN", "SN"],
+        ["ENSEIGNE", "Enseigne"], ["MAGASIN", "Magasin"], ["EXPEDITEUR", "Expéditeur"],
+        ["LIVRAISON", "Date livraison"], ["EMPLACEMENT", "Emplacement"],
+        ["PLANNING", "Planning"], ["COMMENTAIRE", "Commentaire"]
+      ],
       help: [["theme", "Sujet"], ["description", "Explication"]]
     };
 
@@ -651,7 +698,7 @@
         out.__index = index + 1;
         out.__livraisonDate = parseLivraison(source.LIVRAISON);
         out.__planning = parsePlanning(out.PLANNING);
-        out.__search = [out.SKU, out.IMEI, out.SN, out.MARKETING_NAME, out.MAGASIN, out.PRODUIT, out.ENSEIGNE, out.PLANNING].filter(Boolean).join(" ").toUpperCase();
+        out.__search = REQUIRED_COLUMNS.map((c) => out[c]).filter(Boolean).join(" ").toUpperCase();
         return out;
       });
     }
@@ -836,20 +883,30 @@
     function renderKpis() {
       const m = computeMetrics();
       const kpis = [
-        ["physical", "Stock physique", m.physical, "blue", () => state.rows.filter(isPhysicalStock)],
+        ["physical", "Stock physique", m.physical, "blue", () => state.rows.filter(isPhysicalStock), "Tous les articles chez Kube Design"],
         ["owned", "Stock Kube", m.owned, "green", () => state.rows.filter(isOwnedStock)],
         ["standby", "Stock standby", m.standby, "orange", () => state.rows.filter(isStandbyStock)],
-        ["low", "Stock 15 à 5", m.low, "orange", () => state.skuRows.filter((r) => r.alert === "low").sort((a, b) => a.qtyTotal - b.qtyTotal)],
-        ["critical", "Stock 5 à 0", m.critical + m.zero, "red critical", () => state.skuRows.filter((r) => r.alert === "critical" || r.alert === "zero").sort((a, b) => a.qtyTotal - b.qtyTotal)],
+        ["incoming", "📦 Livraisons", m.incoming, "blue", "livraisons"],
         ["project", "Réservé projet", m.project, "blue", () => state.rows.filter((r) => r.STATUT === "PROJET" && r.EMPLACEMENT === "KUBE DESIGN")],
         ["hs", "HS", m.hs, "red", () => state.rows.filter((r) => r.STATUT === "HS")],
-        ["anomalies", "Anomalies", m.anomalies, "red", () => state.anomalies]
+        ["low", "Stock 15 à 5", m.low, "orange", () => state.skuRows.filter((r) => r.alert === "low").sort((a, b) => a.qtyTotal - b.qtyTotal)],
+        ["critical", "Stock 5 à 0", m.critical + m.zero, "red critical", () => state.skuRows.filter((r) => r.alert === "critical" || r.alert === "zero").sort((a, b) => a.qtyTotal - b.qtyTotal)],
+        ["anomalies", "Anomalies", m.anomalies, "red", "anomalies"]
       ];
-      document.getElementById("kpiGrid").innerHTML = kpis.map(([id, label, value, color]) =>
-        `<button class="kpi ${color}" type="button" data-kpi="${id}"><strong>${value}</strong><span>${label}</span></button>`
+      document.getElementById("kpiGrid").innerHTML = kpis.map(([id, label, value, color, , def]) =>
+        `<button class="kpi ${color}" type="button" data-kpi="${id}"><strong>${value}</strong><span>${label}</span>${def ? `<span class="kpi-def">${escapeHtml(def)}</span>` : ""}</button>`
       ).join("");
       kpis.forEach(([id, label, , , provider]) => {
-        document.querySelector(`[data-kpi="${id}"]`).addEventListener("click", () => openDrawer(label, provider()));
+        document.querySelector(`[data-kpi="${id}"]`).addEventListener("click", () => {
+          if (typeof provider === "string") {
+            state.currentTab = provider;
+            state.page = 1;
+            state.sort = defaultSortForTab(provider);
+            renderAll();
+          } else {
+            openDrawer(label, provider());
+          }
+        });
       });
     }
 
@@ -877,9 +934,10 @@
           tools: "standard"
         },
         detail: {
-          title: "Détail unitaire",
+          title: "SODA",
           intro: "Toutes les lignes importées depuis SODA, avec SKU, IMEI, SN, statut, emplacement et destination.",
-          tools: "standard"
+          charts: "stock",
+          tools: "stock"
         },
         technicians: {
           title: "Techniciens",
@@ -891,6 +949,11 @@
           title: "Plannings",
           intro: "Vue planning issue de la colonne PLANNING, avec séparation automatique des interventions à deux techniciens.",
           tools: "standard"
+        },
+        livraisons: {
+          title: "Livraisons",
+          intro: "Articles avec STATUT = LIVRAISON. Recherche par IMEI, SN, produit, enseigne.",
+          tools: "livraisons"
         },
         anomalies: {
           title: "Anomalies",
@@ -924,6 +987,7 @@
 
     function defaultSortForTab(tab) {
       if (tab === "sku") return { key: "qtyTotal", dir: "desc" };
+      if (tab === "livraisons") return { key: "LIVRAISON", dir: "asc" };
       if (tab === "technicians") return { key: "LIVRAISON", dir: "desc" };
       if (tab === "planning") return { key: "week", dir: "asc" };
       if (tab === "history") return { key: "importedAt", dir: "desc" };
@@ -934,6 +998,7 @@
     function currentRows() {
       if (state.currentTab === "sku") return state.skuRows;
       if (state.currentTab === "technicians") return technicianRows();
+      if (state.currentTab === "livraisons") return livraisonsRows();
       if (state.currentTab === "planning") return planningRows();
       if (state.currentTab === "anomalies") return state.anomalies;
       if (state.currentTab === "history") return importHistoryRows();
@@ -941,20 +1006,39 @@
       return state.rows;
     }
 
+    function enrichRowsWithAlerts(rows, skuRows) {
+      const alertMap = new Map();
+      skuRows.forEach((sr) => {
+        sr.names.forEach((_, name) => alertMap.set(name, { alert: sr.alert, alertLabel: sr.alertLabel }));
+      });
+      rows.forEach((r) => {
+        const info = r.MARKETING_NAME ? alertMap.get(r.MARKETING_NAME) : null;
+        r.alertLabel = info ? info.alertLabel : "";
+        r.alert = info ? info.alert : "";
+      });
+    }
+
+    function livraisonsRows() {
+      return state.rows.filter((r) => r.STATUT === "LIVRAISON");
+    }
+
     function helpRows() {
       return [
-        { theme: "Stock physique", description: "Tous les articles physiquement présents chez KUBE DESIGN et comptables selon les règles produit." },
+        { theme: "Import", description: "À chaque ouverture, aucune donnée n’est chargée. Importez votre fichier SODA (.xls/.xlsx/.csv) pour travailler. Chaque import remplace le précédent. Les 8 derniers imports sont conservés dans l’historique." },
+        { theme: "Stock physique", description: "Tous les articles physiquement présents chez KUBE DESIGN et comptables : STATUT = STOCK KUBE, STANDBY, PROJET, HS ou CDM IDF/PROVINCE avec EMPLACEMENT = KUBE DESIGN. Les factices et accessoires sans IMEI/SN sont exclus." },
         { theme: "Stock Kube", description: "Articles avec STATUT = STOCK KUBE et EMPLACEMENT = KUBE DESIGN." },
         { theme: "Stock standby", description: "Articles avec STATUT = STANDBY et EMPLACEMENT = KUBE DESIGN." },
-        { theme: "Stock 15 à 5 / 5 à 0", description: "Les alertes se calculent par PRODUIT. De 15 à 5 : orange. De 5 à 0 : rouge." },
+        { theme: "Livraisons", description: "Articles avec STATUT = LIVRAISON. L’onglet Livraisons permet de filtrer par enseigne, expéditeur, gamme et recherche libre (toutes colonnes)." },
         { theme: "Réservé projet", description: "Articles avec STATUT = PROJET et EMPLACEMENT = KUBE DESIGN." },
         { theme: "HS", description: "Articles avec STATUT = HS — produits Grade D." },
-        { theme: "Factices", description: "Un article est factice si SKU = FACTICE, TYPE = FACTICE, ou s’il n’a ni IMEI ni SN. Les factices sont séparés du produit réel dans le stock." },
-        { theme: "Graphiques", description: "Chaque graphique est cliquable. Cliquer sur une barre ou une portion ouvre le détail filtré correspondant." },
-        { theme: "Indicateurs", description: "Chaque indicateur du haut est cliquable et ouvre la liste détaillée des lignes concernées." },
-        { theme: "Import", description: "À chaque ouverture, aucune donnée n’est chargée. Importez votre BDD pour travailler. Chaque import remplace le précédent." },
-        { theme: "Générer l’AD STOCK KUBE", description: "Exporte un fichier XLS avec deux feuilles : TCD (pivot MARKETING_NAME × STATUT, TYPE = RDU/LDU) et BDD (toutes les lignes). Les cellules STOCK KUBE sont colorées en orange selon le seuil." },
-        { theme: "Anomalies", description: "L’onglet Anomalies liste les incohérences détectées : statuts incohérents, SKU manquants, valeurs non reconnues." }
+        { theme: "Stock 15 à 5 / 5 à 0", description: "Les alertes se calculent par PRODUIT (quantité disponible = Stock Kube + Standby). De 15 à 5 : orange. En dessous de 5 : rouge. À 0 : épuisé." },
+        { theme: "Factices", description: "Un article est factice si SKU = FACTICE, TYPE = FACTICE, ou s’il n’a ni IMEI ni SN (sauf accessoires ACC qui sont de vrais produits sans IMEI/SN)." },
+        { theme: "Onglet SODA", description: "Toutes les lignes importées depuis SODA. Filtres disponibles : recherche libre (toutes colonnes), statut, emplacement, statut alerte, gamme. La colonne Statut alerte est affichée en premier." },
+        { theme: "Anomalies", description: "L’onglet Anomalies liste les incohérences détectées : statuts incohérents avec l’emplacement, SKU manquants, valeurs non reconnues." },
+        { theme: "Graphiques", description: "Chaque graphique dans l’onglet SODA est cliquable. Cliquer sur une barre ou une portion ouvre le détail filtré correspondant dans un panneau latéral." },
+        { theme: "Indicateurs", description: "Chaque indicateur du haut est cliquable : Stock physique, Stock Kube, Standby, Projet, HS ouvrent un panneau détail. Livraisons ouvre l’onglet Livraisons. Anomalies ouvre l’onglet Anomalies." },
+        { theme: "Générer l’AD STOCK KUBE", description: "Exporte un fichier .xls avec deux feuilles : TCD (pivot MARKETING_NAME × STATUT, TYPE = RDU/LDU uniquement) et BDD (toutes les lignes, 17 colonnes SODA). Pour ajouter la navigation interactive (double-clic sur cellule → détail), exécuter le script ajouter-vba-tcd.ps1 sur le fichier exporté." },
+        { theme: "Recherche universelle", description: "La barre de recherche globale (en haut) et les barres par onglet cherchent dans toutes les colonnes : GAMME, PRODUIT, TYPE, COLORIS, MARKETING_NAME, SKU, IMEI, SN, STATUT, EMPLACEMENT, EXPEDITEUR, LIVRAISON, ENSEIGNE, MAGASIN, PLANNING, MOBILIER, COMMENTAIRE." }
       ];
     }
 
@@ -993,10 +1077,24 @@
       const q = state.globalSearch.toUpperCase();
       return rows.filter((r) => {
         if (gamme && r.GAMME !== gamme && r.gamme !== gamme) return false;
+        if (state.currentTab === "detail" && state.detailSearch) {
+          const dq = state.detailSearch.toUpperCase();
+          if (!r.__search || !r.__search.includes(dq)) return false;
+        }
+        if (state.currentTab === "detail" && state.detailStatut && r.STATUT !== state.detailStatut) return false;
+        if (state.currentTab === "detail" && state.detailEmplacement && r.EMPLACEMENT !== state.detailEmplacement) return false;
+        if (state.currentTab === "detail" && state.detailAlerte && r.alert !== state.detailAlerte) return false;
         if (state.currentTab === "technicians" && state.techSearch) {
           const techQuery = state.techSearch.toUpperCase();
-          const techHaystack = [r.IMEI, r.SN, r.technicien, r.techniciens, r.MARKETING_NAME, r.PRODUIT, r.SKU, r.MAGASIN].filter(Boolean).join(" ").toUpperCase();
-          if (!techHaystack.includes(techQuery)) return false;
+          if (!r.__search || !r.__search.includes(techQuery)) return false;
+        }
+        if (state.currentTab === "livraisons") {
+          if (state.livraisonSearch) {
+            const lq = state.livraisonSearch.toUpperCase();
+            if (!r.__search || !r.__search.includes(lq)) return false;
+          }
+          if (state.livraisonEnseigne && r.ENSEIGNE !== state.livraisonEnseigne) return false;
+          if (state.livraisonExpediteur && r.EXPEDITEUR !== state.livraisonExpediteur) return false;
         }
         if (!q) return true;
         if (r.__search) return r.__search.includes(q);
@@ -1071,23 +1169,82 @@
         document.getElementById("tableTools").innerHTML = "";
         return;
       }
+
+      // Sauvegarder le focus avant de reconstruire le HTML
+      const focusedId = document.activeElement ? document.activeElement.id : null;
+      const selStart = (focusedId && document.activeElement.selectionStart != null) ? document.activeElement.selectionStart : null;
+
       const distinctGammes = [...new Set(state.rows.map((r) => r.GAMME).filter(Boolean))].sort();
+      const distinctEnseignes = [...new Set(state.rows.filter((r) => r.STATUT === "LIVRAISON").map((r) => r.ENSEIGNE).filter(Boolean))].sort();
+      const distinctExpediteurs = [...new Set(state.rows.filter((r) => r.STATUT === "LIVRAISON").map((r) => r.EXPEDITEUR).filter(Boolean))].sort();
+      const distinctStatuts = [...new Set(state.rows.map((r) => r.STATUT).filter(Boolean))].sort();
+      const distinctEmplacements = [...new Set(state.rows.map((r) => r.EMPLACEMENT).filter(Boolean))].sort();
+
       const technicianSearch = config.tools === "technicians" ? `
         <input id="techSearch" type="search" placeholder="Rechercher IMEI, SN, technicien, produit" value="${escapeHtml(state.techSearch)}">
       ` : "";
+      const stockSearch = config.tools === "stock" ? `
+        <input id="detailSearch" type="search" placeholder="Rechercher dans toutes les colonnes…" value="${escapeHtml(state.detailSearch)}" style="min-width:220px">
+        <select id="detailStatut">
+          <option value="">Tous statuts</option>
+          ${distinctStatuts.map((s) => `<option value="${escapeHtml(s)}" ${state.detailStatut === s ? "selected" : ""}>${escapeHtml(s)}</option>`).join("")}
+        </select>
+        <select id="detailEmplacement">
+          <option value="">Tous emplacements</option>
+          ${distinctEmplacements.map((e) => `<option value="${escapeHtml(e)}" ${state.detailEmplacement === e ? "selected" : ""}>${escapeHtml(e)}</option>`).join("")}
+        </select>
+        <select id="detailAlerte">
+          <option value="">Tous statuts alerte</option>
+          <option value="ok" ${state.detailAlerte === "ok" ? "selected" : ""}>OK</option>
+          <option value="low" ${state.detailAlerte === "low" ? "selected" : ""}>Stock bas</option>
+          <option value="critical" ${state.detailAlerte === "critical" ? "selected" : ""}>Critique</option>
+          <option value="zero" ${state.detailAlerte === "zero" ? "selected" : ""}>Épuisé</option>
+        </select>
+      ` : "";
+
+      const livraisonTools = config.tools === "livraisons" ? (() => {
+        const count = state.filteredRows.length;
+        const parts = [state.livraisonEnseigne, state.livraisonExpediteur, state.gammeFilter].filter(Boolean);
+        const filterLabel = parts.length ? `<span class="badge-filters">— ${escapeHtml(parts.join(" · "))}</span>` : "";
+        return `
+          <span class="livraison-badge">📦 <span class="badge-count">${count}</span> livraison${count !== 1 ? "s" : ""} ${filterLabel}</span>
+          <input id="livraisonSearch" type="search" placeholder="IMEI, SN, produit, magasin…" value="${escapeHtml(state.livraisonSearch)}" style="min-width:220px">
+          <select id="livraisonEnseigne">
+            <option value="">Toutes enseignes</option>
+            ${distinctEnseignes.map((e) => `<option value="${escapeHtml(e)}" ${state.livraisonEnseigne === e ? "selected" : ""}>${escapeHtml(e)}</option>`).join("")}
+          </select>
+          <select id="livraisonExpediteur">
+            <option value="">Tous expéditeurs</option>
+            ${distinctExpediteurs.map((e) => `<option value="${escapeHtml(e)}" ${state.livraisonExpediteur === e ? "selected" : ""}>${escapeHtml(e)}</option>`).join("")}
+          </select>
+        `;
+      })() : "";
+
       const gammeSelect = config.tools === "history" ? "" : `
         <select id="gammeFilter">
           <option value="">Toutes gammes</option>
           ${distinctGammes.map((g) => `<option value="${escapeHtml(g)}" ${state.gammeFilter === g ? "selected" : ""}>${escapeHtml(g)}</option>`).join("")}
         </select>
       `;
+
+      const countBadge = config.tools !== "livraisons" && config.tools !== "history" ? (() => {
+        const count = state.filteredRows.length;
+        const label = state.currentTab === "anomalies" ? "anomalie" : state.currentTab === "detail" ? "article" : "ligne";
+        const gammeTag = state.gammeFilter ? `<span class="badge-filters">— ${escapeHtml(state.gammeFilter)}</span>` : "";
+        return `<span class="livraison-badge"><span class="badge-count">${count}</span> ${label}${count !== 1 ? "s" : ""} ${gammeTag}</span>`;
+      })() : "";
+
       document.getElementById("tableTools").innerHTML = `
         ${technicianSearch}
+        ${stockSearch}
+        ${livraisonTools}
+        ${countBadge}
         ${gammeSelect}
         <button id="exportReporting" class="primary" type="button">Générer l'AD STOCK KUBE</button>
         <button id="exportCsv" type="button">Exporter CSV</button>
         <button id="exportXlsx" type="button">Exporter Excel</button>
       `;
+
       const filter = document.getElementById("gammeFilter");
       if (filter) {
         filter.addEventListener("change", () => {
@@ -1099,7 +1256,63 @@
       const techSearch = document.getElementById("techSearch");
       if (techSearch) {
         techSearch.addEventListener("input", () => {
-          state.techSearch = techSearch.value.trim();
+          state.techSearch = techSearch.value;
+          state.page = 1;
+          renderTable();
+        });
+      }
+      const detailSearch = document.getElementById("detailSearch");
+      if (detailSearch) {
+        detailSearch.addEventListener("input", () => {
+          state.detailSearch = detailSearch.value;
+          state.page = 1;
+          renderTable();
+        });
+      }
+      const detailStatut = document.getElementById("detailStatut");
+      if (detailStatut) {
+        detailStatut.addEventListener("change", () => {
+          state.detailStatut = detailStatut.value;
+          state.page = 1;
+          renderTable();
+        });
+      }
+      const detailEmplacement = document.getElementById("detailEmplacement");
+      if (detailEmplacement) {
+        detailEmplacement.addEventListener("change", () => {
+          state.detailEmplacement = detailEmplacement.value;
+          state.page = 1;
+          renderTable();
+        });
+      }
+      const detailAlerte = document.getElementById("detailAlerte");
+      if (detailAlerte) {
+        detailAlerte.addEventListener("change", () => {
+          state.detailAlerte = detailAlerte.value;
+          state.page = 1;
+          renderTable();
+        });
+      }
+      const livraisonSearch = document.getElementById("livraisonSearch");
+      if (livraisonSearch) {
+        livraisonSearch.addEventListener("input", () => {
+          state.livraisonSearch = livraisonSearch.value;
+          state.page = 1;
+          renderTable();
+        });
+      }
+      const livraisonEnseigne = document.getElementById("livraisonEnseigne");
+      if (livraisonEnseigne) {
+        livraisonEnseigne.addEventListener("change", () => {
+          state.livraisonEnseigne = livraisonEnseigne.value;
+          state.page = 1;
+          renderTable();
+        });
+      }
+      const livraisonExpediteur = document.getElementById("livraisonExpediteur");
+      if (livraisonExpediteur) {
+        livraisonExpediteur.addEventListener("change", () => {
+          state.livraisonExpediteur = livraisonExpediteur.value;
           state.page = 1;
           renderTable();
         });
@@ -1107,6 +1320,17 @@
       document.getElementById("exportReporting").addEventListener("click", exportSamsungReporting);
       document.getElementById("exportCsv").addEventListener("click", () => exportCsv(state.filteredRows, `${state.currentTab}.csv`));
       document.getElementById("exportXlsx").addEventListener("click", () => exportXlsx(state.filteredRows, `${state.currentTab}.xlsx`));
+
+      // Restaurer le focus (évite la perte de saisie après re-render)
+      if (focusedId) {
+        const el = document.getElementById(focusedId);
+        if (el) {
+          el.focus();
+          if (selStart !== null && el.setSelectionRange) {
+            try { el.setSelectionRange(selStart, selStart); } catch (e) {}
+          }
+        }
+      }
     }
 
     function renderCharts() {
@@ -1189,10 +1413,11 @@
       state.rawRows = inputRows;
       state.rows = normalizeRows(inputRows);
       state.skuRows = buildSkuRows(state.rows);
+      enrichRowsWithAlerts(state.rows, state.skuRows);
       state.anomalies = detectAnomalies(state.rows);
       state.fileName = fileName;
       state.importedAt = importedAt;
-      state.currentTab = options.keepTab ? state.currentTab : "sku";
+      state.currentTab = options.keepTab ? state.currentTab : "detail";
       state.page = 1;
       state.sort = defaultSortForTab(state.currentTab);
       document.getElementById("fileMeta").textContent = `${fileName} - ${state.rows.length} lignes - import ${state.importedAt.toLocaleString("fr-FR")}`;
@@ -1550,16 +1775,8 @@
       event.target.value = "";
     });
     document.getElementById("globalSearch").addEventListener("input", (event) => {
-      const q = event.target.value.trim();
-      state.globalSearch = q;
+      state.globalSearch = event.target.value.trim();
       state.page = 1;
-      if (q && state.currentTab === "sku") {
-        state.currentTab = "detail";
-        state.sort = defaultSortForTab("detail");
-      } else if (!q && state.currentTab === "detail") {
-        state.currentTab = "sku";
-        state.sort = defaultSortForTab("sku");
-      }
       renderAll();
     });
     document.getElementById("prevPage").addEventListener("click", () => { state.page -= 1; renderTable(); });
