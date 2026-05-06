@@ -13,7 +13,8 @@
       "Bash(where python *)",
       "Bash(where py *)",
       "Bash(powershell -Command \"\\(Get-Content 'D:\\\\SERVICE PRODUIT LOGICIEL\\\\index.html'\\).Count\")",
-      "PowerShell(\\(Get-Content \"D:\\\\SERVICE PRODUIT LOGICIEL\\\\index.html\"\\).Count)"
+      "PowerShell(\\(Get-Content \"D:\\\\SERVICE PRODUIT LOGICIEL\\\\index.html\"\\).Count)",
+      "PowerShell($bytes = [System.IO.File]::ReadAllBytes\\(\"D:\\\\SERVICE PRODUIT LOGICIEL\\\\logo.png\"\\); [Convert]::ToBase64String\\($bytes\\))"
     ]
   }
 }
