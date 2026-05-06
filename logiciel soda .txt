@@ -1,0 +1,20 @@
+on va créer un logiciel qui va permettre de gérer nos Données.
+
+Je suis gestionnaire de stock à kube design et je m'occupe des entrées et sorties de stock via un WMS celui-ci s'appelle SODA.
+
+SODA ne permet pas de calculer combien d'article l'on a en stock mais on peu prendre un fichier cvs pour l'importer sur sur excel.
+
+Je te donnerai un fichier csv de données pour que tu es la base de soda en exportation :
+
+Grace au logiciel je voudrais 
+- connaitre ce que j'ai en stock en fonction du sku surtout, c'est une référence sur car en général les noms… sont différents ou mal noté, 
+- je voudrai que le logiciel nomme les produit en focntion du sku et il prendra le marketing name de ce sku le plus utilisé.
+- Avoir des kpi dont 1 sur nos stocks (ce quil nous reste), les autres tu les définira en fonction du fichier
+- Je veux un indicateur disant me signalant quand une quantité est basse
+- Chaque indicateur sera cliquable
+- Je voudrai qu'il me fasse des alerte de stock, quand la quantité de sku d'une référenceet entre 15 et 5, cet indicateur sera orange et si il est entre 4 et 0 bas il sera en rouge
+- je voudrai que juste avec l'export de soda que dès que je fais l'import dans le logiciel qu'il me fasse tout sa d'un coup, se sera un Dashboard à part de soda qui aidera pour les reportings hebdomadaires ou la gestion de stock
+
+Fait moi un prompt pour codex, se projet s'apellera "gestion de stock au service produit", tu pourras proposer des choses intéréssante à ajouter et je te transférerai un export soda pour que tu voit ce à quoi sa ressmble.
+
+Aussi, quand les produits sont dans nos stocks, présent dans l'entrepot, leur emplacement est dans KUBE DESIGN, l'expéditeur c'est la personne qui nous la livré en général, le statut c'est juste pour savoir si le produit nous appartient donc en "stock kube" ou si c'est le produit d'un autre prestataire qui est maintenant chez nous et qui a le statut "standby", la livraison c'est la date à laquel on la reçu, le planning c'est le nom du technicien est parti l'installer en magasin avec la semaine exemple "W09" donc semaine 09 et l'année, le mobiler c'est sur quel mobilier à était installé le produit. Si tu as besoin d'information supplémentaire dis le moi 

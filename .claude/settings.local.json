@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3)",
+      "PowerShell(python -m pip list)",
+      "Bash(python3 -c \"import openpyxl; print\\('openpyxl available'\\)\")",
+      "Bash(python -c \"import openpyxl; print\\('openpyxl available'\\)\")",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "Read(//c/Users/marga/AppData/Roaming/Claude/local-agent-mode-sessions/skills-plugin/d481ea2b-4d7b-4e55-b936-5cdba07578e7/3c48fd54-b5df-4289-8036-6833c2a4c0f7/skills/xlsx/**)",
+      "Bash(python -)",
+      "Bash(pip show *)",
+      "Bash(where python3 *)",
+      "Bash(where python *)",
+      "Bash(where py *)"
+    ]
+  }
+}

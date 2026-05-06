@@ -1,0 +1,1590 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gestion de stock au service produit</title>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --panel: #ffffff;
+      --panel-2: #eef2f6;
+      --ink: #17202a;
+      --muted: #667385;
+      --line: #d9e0e7;
+      --blue: #0b5cab;
+      --blue-2: #17456f;
+      --green: #2e7d32;
+      --orange: #d98200;
+      --red: #c62828;
+      --gray: #77808c;
+      --shadow: 0 10px 30px rgba(22, 34, 51, 0.10);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      font-size: 14px;
+    }
+
+    button, input, select {
+      font: inherit;
+    }
+
+    button {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--ink);
+      border-radius: 6px;
+      min-height: 34px;
+      padding: 7px 11px;
+      cursor: pointer;
+    }
+
+    button:hover { border-color: #9fb4c8; background: #f9fbfd; }
+    button.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+    button.primary:hover { background: var(--blue-2); }
+    button.icon { width: 36px; padding: 6px; }
+
+    input, select {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 6px;
+      min-height: 34px;
+      padding: 7px 10px;
+      color: var(--ink);
+    }
+
+    .app-shell { min-height: 100vh; }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: #fff;
+      border-bottom: 1px solid var(--line);
+      box-shadow: 0 1px 8px rgba(24, 38, 55, 0.06);
+    }
+
+    .brand-row {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) minmax(220px, 380px) auto;
+      gap: 12px;
+      align-items: center;
+      padding: 10px 18px 8px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: -0.2px;
+      color: #10243a;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 11px;
+      margin-top: 1px;
+    }
+
+    .global-search {
+      width: 100%;
+    }
+
+    .file-meta {
+      color: var(--muted);
+      font-size: 12px;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(10, minmax(108px, 1fr));
+      gap: 6px;
+      padding: 0 18px 10px;
+      overflow-x: auto;
+    }
+
+    .kpi {
+      min-width: 108px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-left: 3px solid #9aa7b6;
+      border-radius: 8px;
+      padding: 7px 10px;
+      text-align: left;
+      box-shadow: 0 1px 2px rgba(20, 30, 42, 0.04);
+    }
+
+    .kpi strong {
+      display: block;
+      font-size: 19px;
+      line-height: 1.1;
+      margin-bottom: 2px;
+    }
+
+    .kpi span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.2;
+    }
+
+    .kpi.green { border-left-color: var(--green); }
+    .kpi.orange { border-left-color: var(--orange); }
+    .kpi.red { border-left-color: var(--red); }
+    .kpi.gray { border-left-color: var(--gray); }
+    .kpi.blue { border-left-color: var(--blue); }
+    .kpi.critical {
+      animation: pulse-border 1.8s ease-in-out infinite;
+    }
+
+    @keyframes pulse-border {
+      0%, 100% { box-shadow: 0 0 0 rgba(198, 40, 40, 0); }
+      50% { box-shadow: 0 0 0 3px rgba(198, 40, 40, 0.12); }
+    }
+
+    .workspace {
+      padding: 12px 18px 24px;
+    }
+
+    .import-band {
+      display: grid;
+      grid-template-columns: minmax(260px, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      background: #ffffff;
+      border: 1px dashed #9fb4c8;
+      border-radius: 6px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    .legend-band {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 12px 14px;
+      margin-bottom: 14px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .legend-band strong {
+      color: var(--ink);
+    }
+
+    .legend-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 14px;
+      margin-top: 8px;
+    }
+
+    .drop-zone {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      min-height: 42px;
+      color: var(--muted);
+    }
+
+    .drop-zone.dragging {
+      color: var(--blue);
+      border-color: var(--blue);
+    }
+
+    .tabs {
+      display: flex;
+      gap: 6px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 12px;
+      overflow-x: auto;
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      background: var(--bg);
+      padding-top: 2px;
+    }
+
+    .tab {
+      border: 0;
+      border-bottom: 3px solid transparent;
+      background: transparent;
+      border-radius: 0;
+      min-height: 40px;
+      padding: 9px 13px;
+      white-space: nowrap;
+      color: var(--muted);
+    }
+
+    .tab.active {
+      color: var(--blue);
+      border-bottom-color: var(--blue);
+      font-weight: 650;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      box-shadow: 0 1px 2px rgba(20, 30, 42, 0.04);
+      margin-bottom: 14px;
+    }
+
+    .page-intro {
+      background: transparent;
+      border: none;
+      border-left: 3px solid var(--blue);
+      border-radius: 0;
+      padding: 2px 10px;
+      margin-bottom: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .page-intro strong {
+      display: inline;
+      color: var(--ink);
+      margin-right: 4px;
+    }
+
+    .panel-head {
+      display: grid;
+      grid-template-columns: minmax(180px, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .panel-title {
+      font-size: 15px;
+      font-weight: 650;
+    }
+
+    .tools {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .charts {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(220px, 1fr));
+      gap: 14px;
+      margin-bottom: 14px;
+      max-width: 1100px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .chart-box {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 12px;
+      height: 285px;
+    }
+
+    .chart-box canvas {
+      cursor: pointer;
+    }
+
+    .chart-title {
+      font-weight: 650;
+      margin-bottom: 6px;
+      font-size: 13px;
+    }
+
+    .chart-wrap {
+      height: 235px;
+    }
+
+    .table-wrap {
+      overflow: auto;
+      max-height: calc(100vh - 270px);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 960px;
+      font-size: 13px;
+    }
+
+    th, td {
+      padding: 8px 9px;
+      border-bottom: 1px solid #edf1f5;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: #f8fafc;
+      color: #324255;
+      font-weight: 650;
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    tr:hover td { background: #f9fbfd; }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-size: 12px;
+      font-weight: 650;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+
+    .pill.ok { color: var(--green); background: #e9f5ea; border-color: #c8e6c9; }
+    .pill.low { color: var(--orange); background: #fff4df; border-color: #f4cf91; }
+    .pill.critical { color: var(--red); background: #fdeaea; border-color: #efb5b5; }
+    .pill.zero { color: #4f5864; background: #eef1f4; border-color: #d6dce3; }
+
+    .pager {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      flex-wrap: wrap;
+    }
+
+    .drawer-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(11, 22, 35, 0.28);
+      display: none;
+      z-index: 100;
+    }
+
+    .drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: min(980px, 92vw);
+      height: 100vh;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      transform: translateX(100%);
+      transition: transform 0.18s ease;
+      z-index: 101;
+    }
+
+    .drawer.open { transform: translateX(0); }
+    .drawer-backdrop.open { display: block; }
+
+    .drawer-head {
+      display: grid;
+      grid-template-columns: minmax(120px, 1fr) auto;
+      gap: 12px;
+      padding: 14px;
+      border-bottom: 1px solid var(--line);
+      align-items: center;
+    }
+
+    .drawer-body {
+      overflow: auto;
+      flex: 1;
+    }
+
+    .empty {
+      padding: 35px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .hidden { display: none !important; }
+
+    @media (max-width: 1100px) {
+      .brand-row { grid-template-columns: 1fr; }
+      .file-meta { text-align: left; white-space: normal; }
+      .charts { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
+    }
+
+    @media (max-width: 720px) {
+      .workspace, .brand-row { padding-left: 10px; padding-right: 10px; }
+      .kpi-grid { padding-left: 10px; padding-right: 10px; }
+      .charts { grid-template-columns: 1fr; }
+      .panel-head, .import-band { grid-template-columns: 1fr; }
+      .tools { justify-content: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <input id="fileInput" class="hidden" type="file" accept=".xlsx,.xls,.csv,.txt">
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-row">
+        <div>
+          <h1>Gestion de stock au service produit</h1>
+          <div class="subtitle">Dashboard complémentaire SODA pour Kube Design</div>
+        </div>
+        <input id="globalSearch" class="global-search" type="search" placeholder="Recherche globale : SKU, IMEI, SN, nom, magasin">
+        <div>
+          <div class="file-meta" id="fileMeta">Données de démonstration chargées</div>
+          <button id="reportingBtn" class="primary" type="button">Générer l'AD STOCK KUBE</button>
+          <button id="newImportBtn" class="primary" type="button">Nouvel import</button>
+        </div>
+      </div>
+      <div id="kpiGrid" class="kpi-grid"></div>
+    </header>
+
+    <main class="workspace">
+      <nav class="tabs" id="tabs"></nav>
+
+      <section id="dropZone" class="import-band">
+        <div class="drop-zone">
+          <strong>Glissez votre export SODA ici</strong>
+          <span>ou chargez un fichier XLSX / CSV. Chaque nouvel import remplace les données courantes.</span>
+        </div>
+        <button id="browseBtn" class="primary" type="button">Parcourir</button>
+      </section>
+
+      <section id="pageIntro" class="page-intro"></section>
+
+      <section id="charts" class="charts">
+        <div class="chart-box" data-chart-page="stock">
+          <div class="chart-title">Stock par expéditeur</div>
+          <div class="chart-wrap"><canvas id="standbyChart"></canvas></div>
+        </div>
+
+        <div class="chart-box" data-chart-page="stock">
+          <div class="chart-title">Top enseignes destinataires</div>
+          <div class="chart-wrap"><canvas id="brandChart"></canvas></div>
+        </div>
+        <div class="chart-box" data-chart-page="stock">
+          <div class="chart-title">Répartition par gamme</div>
+          <div class="chart-wrap"><canvas id="rangeChart"></canvas></div>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-head">
+          <div class="panel-title" id="tableTitle">Vue stock par SKU</div>
+          <div class="tools" id="tableTools"></div>
+        </div>
+        <div class="table-wrap">
+          <table id="dataTable"></table>
+        </div>
+        <div class="pager">
+          <div id="pageInfo"></div>
+          <div class="tools">
+            <button id="prevPage" type="button">Précédent</button>
+            <button id="nextPage" type="button">Suivant</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="drawerBackdrop" class="drawer-backdrop"></div>
+  <aside id="drawer" class="drawer" aria-hidden="true">
+    <div class="drawer-head">
+      <div>
+        <div class="panel-title" id="drawerTitle">Détail</div>
+        <div class="subtitle" id="drawerMeta"></div>
+      </div>
+      <div class="tools">
+        <button id="drawerCsv" type="button">Exporter CSV</button>
+        <button id="drawerXlsx" type="button">Exporter Excel</button>
+        <button id="drawerClose" class="icon" type="button" title="Fermer">X</button>
+      </div>
+    </div>
+    <div class="drawer-body">
+      <table id="drawerTable"></table>
+    </div>
+  </aside>
+
+  <script>
+    const REQUIRED_COLUMNS = [
+      "ID", "GAMME", "PRODUIT", "TYPE", "COLORIS", "MARKETING_NAME", "SKU", "IMEI", "SN",
+      "STATUT", "EMPLACEMENT", "EXPEDITEUR", "LIVRAISON", "ENSEIGNE", "MAGASIN", "PLANNING",
+      "MOBILIER", "COMMENTAIRE"
+    ];
+    const TEXT_UPPER_COLUMNS = new Set(["STATUT", "EMPLACEMENT", "EXPEDITEUR", "ENSEIGNE", "GAMME"]);
+    const KNOWN_STATUSES = new Set(["STOCK KUBE", "STANDBY", "PROJET", "HS", "LIVRAISON", "CDM IDF", "CDM PROVINCE", "MAGASIN", "VOL"]);
+    const KNOWN_LOCATIONS = new Set(["KUBE DESIGN", "LIVRAISON", "MAGASIN"]);
+    const PAGE_SIZE = 100;
+    const CURRENT_IMPORT_KEY = "kubeStockCurrentImport";
+    const IMPORT_HISTORY_KEY = "kubeStockImportHistory";
+    const IMPORT_HISTORY_LIMIT = 8;
+
+    const demoRows = [
+      row("1", "S SERIES", "S25 ULTRA", "RDU", "GRIS", "Galaxy S25 Ultra Gris", "SM-S938BZADEUC", "351111111111111", "351111111111111", "STOCK KUBE", "KUBE DESIGN", "DHL", "12/04/2026", "FNAC", "FNAC LYON", "PIERRE CDM W18 2026", "TABLE", ""),
+      row("2", "S SERIES", "S25 ULTRA", "RDU", "GRIS", "Samsung Galaxy S25 Ultra Gris", "SM-S938BZADEUC", "351111111111112", "351111111111112", "STOCK KUBE ", "KUBE DESIGN", "DHL", "12/04/2026", "FNAC", "FNAC LYON", "PIERRE CDM W18 2026", "TABLE", ""),
+      row("3", "S SERIES", "S25 ULTRA", "RDU", "GRIS", "Galaxy S25 Ultra Gris", "SM-S938BZADEUC", "351111111111113", "351111111111113", "STANDBY", "KUBE DESIGN", "ICP", "13/04/2026", "DARTY", "DARTY NANTES", "SARAH CDM W18 2026", "ILOT", ""),
+      row("4", "A SERIES", "A56", "RDU", "NOIR", "Galaxy A56 Noir", "SM-A566BZKDEUC", "351111111111114", "351111111111114", "PROJET", "KUBE DESIGN", "KUBE DESIGN", " X", "BOULANGER", "BOULANGER LILLE", "TODOR CDM W19 2026", "MUR", "Projet été"),
+      row("5", "WATCH", "WATCH 7", "RDU", "ARGENT", "Galaxy Watch7 Argent", "SM-L310NZSAEUC", "", "R5W12345001", "HS", "KUBE DESIGN", "INOVSHOP", "10-04-2026", "ORANGE", "ORANGE PARIS", "MAYA CDM W18 2026", "VITRINE", "GRADE C"),
+      row("6", "BUDS", "BUDS 3 PRO", "RDU", "BLANC", "Galaxy Buds3 Pro Blanc", "SM-R630NZWAEUC", "", "R630001", "LIVRAISON", "LIVRAISON", "DHL", "18/04/2026", "FNAC", "FNAC TOURS", "JULIEN CDM W19 2026", "COMPTOIR", ""),
+      row("7", "TAB", "TAB S10", "RDU", "GRIS", "Galaxy Tab S10 Gris", "SM-X820NZAAEUC", "", "X820001", "CDM IDF", "LIVRAISON", "KUBE DESIGN", "15/04/2026", "SAMSUNG STORE", "SAMSUNG STORE OPERA", "NORA CDM W18 2026", "TABLE", ""),
+      row("8", "Z SERIES", "Z FLIP6", "RDU", "BLEU", "Galaxy Z Flip6 Bleu", "SM-F741BLBGEUC", "351111111111115", "351111111111115", "CDM PROVINCE", "LIVRAISON", "KUBE DESIGN", "16/04/2026", "BOUYGUES", "BOUYGUES RENNES", "PIERRE CDM W18 2026", "TABLE", ""),
+      row("9", "ACC", "COVER S25", "COVER", "NOIR", "Cover S25 Noir", "FACTICE", "", "COVER001", "STOCK KUBE", "KUBE DESIGN", "ATMOSPHERE", "17/04/2026", "DARTY", "DARTY NICE", "LINA CDM W20 2026", "BROCHE", ""),
+      row("10", "ACC", "COVER S25", "COVER", "BLEU", "Cover S25 Bleu", "FACTICE", "", "COVER002", "STOCK KUBE", "KUBE DESIGN", "ATMOSPHERE", "17/04/2026", "DARTY", "DARTY NICE", "LINA CDM W20 2026", "BROCHE", ""),
+      row("11", "WATCH", "WATCH FACTICE", "FACTICE", "NOIR", "Factice Watch Noir", "FACTICE", "", "WATCH001", "STANDBY", "KUBE DESIGN", "DMF", "18/04/2026", "FNAC", "FNAC BORDEAUX", "ROMAIN CDM W18 2026", "VITRINE", ""),
+      row("12", "BOOK", "BOOK4 EDGE 16", "RDU", "GRIS", "Galaxy Book4 Edge 16", "NP960XMA-KB1FR", "", "BOOK001", "MAGASIN", "MAGASIN", "ICP", "05/04/2026", "BOULANGER", "BOULANGER MARSEILLE", "ROMAIN CDM W14 2026", "TABLE", ""),
+      row("13", "RING", "RING", "RDU", "OR", "Galaxy Ring Or", "SM-Q500NZDAEUC", "", "RING001", "MAGASIN", "KUBE DESIGN", "ICP", "06/04/2026", "ORANGE", "ORANGE LILLE", "SARAH CDM W17 2026", "VITRINE", ""),
+      row("14", "XCOVER", "XCOVER 7", "RDU", "NOIR", "Galaxy XCover7 Noir", "SM-G556BZKDEUC", "351111111111116", "351111111111116", "VOL", "MAGASIN", "KUBE DESIGN", "02/04/2026", "FNAC", "FNAC PARIS", "PIERRE CDM W13 2026", "MUR", "Vol déclaré"),
+      row("15", "DPOP", "DPOP S25", "FACTICE", "BLANC", "DPOP S25 Blanc", "", "", "DPOP001", "STOCK KUBE", "KUBE DESIGN", "IMPACT", "08/04/2026", "DARTY", "DARTY DIJON", "ALICE CDM W18 2026", "PLV", ""),
+      row("16", "BUDS", "BUDS 3", "RDU", "GRIS", "Galaxy Buds3 Gris", "SM-R530NZAAEUC", "", "R530001", "INCONNU", "KUBE DESIGN", "DHL", "09/04/2026", "FNAC", "FNAC AMIENS", "ALICE W18 2026", "COMPTOIR", ""),
+      row("17", "TAB", "TAB A9", "RDU", "GRIS", "Galaxy Tab A9 Gris", "SM-X110NZAAEUC", "", "X110001", "STOCK KUBE", "MAGASIN", "DHL", "11/04/2026", "ORANGE", "ORANGE NANTES", "MAYA CDM W18 2026", "TABLE", ""),
+      row("18", "BUDS", "BUDS 3 PRO", "RDU", "BLANC", "Galaxy Buds3 Pro Blanc", "SM-R630NZWAEUC", "", "R630001", "STANDBY", "KUBE DESIGN", "ICP", "18/04/2026", "FNAC", "FNAC TOURS", "JULIEN CDM W19 2026", "COMPTOIR", "")
+    ];
+
+    const state = {
+      rawRows: [],
+      rows: [],
+      skuRows: [],
+      anomalies: [],
+      filteredRows: [],
+      currentTab: "sku",
+      page: 1,
+      sort: { key: "qtyTotal", dir: "desc" },
+      globalSearch: "",
+      techSearch: "",
+      gammeFilter: "",
+      fileName: "Données de démonstration",
+      importedAt: new Date(),
+      charts: {},
+      drawerRows: [],
+      drawerTitle: "",
+      history: []
+    };
+
+    const tabs = [
+      { id: "sku", label: "Vue stock par produit" },
+      { id: "detail", label: "Vue détail unitaire" },
+      { id: "anomalies", label: "Anomalies" },
+      { id: "help", label: "Mode d'emploi" }
+    ];
+
+    const columns = {
+      sku: [
+        ["canonicalName", "Nom canonique"], ["sku", "SKU liés"], ["gamme", "Gamme"], ["qtyKube", "Qty Stock Kube"],
+        ["qtyStandby", "Qty Standby"], ["qtyTotal", "Qty Total Dispo"], ["alertLabel", "Statut alerte"]
+      ],
+      detail: REQUIRED_COLUMNS.map((c) => [c, c]),
+      technicians: [["technicien", "Technicien"], ["LIVRAISON", "Date"], ["week", "Semaine ISO"], ["year", "Année"], ["IMEI", "IMEI"], ["SN", "SN"], ["MARKETING_NAME", "Produit"], ["PRODUIT", "Produit court"], ["GAMME", "Gamme"], ["SKU", "SKU"], ["STATUT", "Statut"], ["EMPLACEMENT", "Emplacement"], ["ENSEIGNE", "Enseigne"], ["MAGASIN", "Magasin"], ["MOBILIER", "Mobilier"], ["techniciens", "Equipe"]],
+      planning: [["technicien", "Technicien"], ["week", "Semaine ISO"], ["year", "Année"], ["MAGASIN", "Magasin"], ["ENSEIGNE", "Enseigne"], ["MOBILIER", "Mobilier"], ["SKU", "SKU"], ["MARKETING_NAME", "Produit"]],
+      anomalies: [["type", "Type"], ["ID", "ID"], ["SKU", "SKU"], ["STATUT", "Statut"], ["EMPLACEMENT", "Emplacement"], ["detail", "Détail"]],
+      history: [["importedAtLabel", "Date d'import"], ["fileName", "Fichier"], ["rowCount", "Lignes"], ["physical", "Stock physique"], ["owned", "Stock Kube"], ["standby", "Standby"], ["status", "Statut"], ["action", "Action"]],
+      help: [["theme", "Sujet"], ["description", "Explication"]]
+    };
+
+    function row(ID, GAMME, PRODUIT, TYPE, COLORIS, MARKETING_NAME, SKU, IMEI, SN, STATUT, EMPLACEMENT, EXPEDITEUR, LIVRAISON, ENSEIGNE, MAGASIN, PLANNING, MOBILIER, COMMENTAIRE) {
+      return { ID, GAMME, PRODUIT, TYPE, COLORIS, MARKETING_NAME, SKU, IMEI, SN, STATUT, EMPLACEMENT, EXPEDITEUR, LIVRAISON, ENSEIGNE, MAGASIN, PLANNING, MOBILIER, COMMENTAIRE };
+    }
+
+    function normalizeValue(value, column) {
+      if (value === undefined || value === null) return null;
+      let out = String(value).trim();
+      if (!out || out.toUpperCase() === "NAN") return null;
+      if (TEXT_UPPER_COLUMNS.has(column)) out = out.toUpperCase();
+      return out;
+    }
+
+    function parseLivraison(value) {
+      if (value === undefined || value === null || value === "") return null;
+      if (typeof value === "number" && Number.isFinite(value)) {
+        const date = XLSX.SSF.parse_date_code(value);
+        if (!date) return null;
+        return new Date(Date.UTC(date.y, date.m - 1, date.d));
+      }
+      const text = String(value).trim();
+      if (!text || text.toUpperCase() === "X") return null;
+      const match = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+      if (!match) return null;
+      const date = new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]));
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+
+    function parsePlanning(text) {
+      const raw = normalizeValue(text, "PLANNING");
+      if (!raw) return { raw: null, technicien: null, techniciens: [], week: null, year: null };
+      const match = raw.match(/^(.+?)\s+(?:CDM\s+)?W(\d{1,2})\s+(\d{4})$/i);
+      if (!match) {
+        const techniciens = splitTechniciens(raw);
+        return { raw, technicien: techniciens.join(" / "), techniciens, week: null, year: null };
+      }
+      const techniciens = splitTechniciens(match[1]);
+      return { raw, technicien: techniciens.join(" / "), techniciens, week: Number(match[2]), year: Number(match[3]) };
+    }
+
+    function splitTechniciens(value) {
+      const cleaned = normalizeValue(value, "PLANNING");
+      if (!cleaned) return [];
+      return cleaned
+        .replace(/\s+(?:ET|AVEC)\s+/gi, " / ")
+        .split(/\s*[\/+&,]\s*/)
+        .map((name) => name.trim().toUpperCase())
+        .filter(Boolean);
+    }
+
+    function normalizeRows(inputRows) {
+      return inputRows.map((source, index) => {
+        const out = {};
+        REQUIRED_COLUMNS.forEach((column) => {
+          out[column] = column === "LIVRAISON" ? normalizeValue(source[column], column) : normalizeValue(source[column], column);
+        });
+        out.__index = index + 1;
+        out.__livraisonDate = parseLivraison(source.LIVRAISON);
+        out.__planning = parsePlanning(out.PLANNING);
+        out.__search = [out.SKU, out.IMEI, out.SN, out.MARKETING_NAME, out.MAGASIN, out.PRODUIT, out.ENSEIGNE, out.PLANNING].filter(Boolean).join(" ").toUpperCase();
+        return out;
+      });
+    }
+
+    function isAvailable(rowData) {
+      if (!isCountableArticle(rowData)) return false;
+      if (rowData.EMPLACEMENT !== "KUBE DESIGN") return false;
+      // Règle métier : CDM au kube = stock disponible
+      if (rowData.STATUT === "CDM IDF" || rowData.STATUT === "CDM PROVINCE") return true;
+      return !["PROJET", "HS", "MAGASIN"].includes(rowData.STATUT);
+    }
+
+    function isFactice(rowData) {
+      if (rowData.SKU === "FACTICE" || rowData.TYPE === "FACTICE") return true;
+      // Règle métier : les ACC sont de vrais produits sans IMEI/SN par nature
+      if (rowData.GAMME === "ACC") return false;
+      return !rowData.IMEI && !rowData.SN;
+    }
+
+    function isCountableArticle(rowData) {
+      if (!isFactice(rowData)) return true;
+      return Boolean(rowData.PRODUIT && rowData.GAMME);
+    }
+
+    function isPhysicalStock(rowData) {
+      return rowData.EMPLACEMENT === "KUBE DESIGN" && isCountableArticle(rowData);
+    }
+
+    function isOwnedStock(rowData) {
+      return rowData.STATUT === "STOCK KUBE" && rowData.EMPLACEMENT === "KUBE DESIGN" && isCountableArticle(rowData);
+    }
+
+    function isStandbyStock(rowData) {
+      return rowData.STATUT === "STANDBY" && rowData.EMPLACEMENT === "KUBE DESIGN" && isCountableArticle(rowData);
+    }
+
+    function getGroupKey(rowData, ambiguousSkuSet) {
+      if (isFactice(rowData)) {
+        return [rowData.GAMME || "", rowData.PRODUIT || "", "FACTICE"].join(" | ");
+      }
+      return [rowData.GAMME || "", rowData.PRODUIT || ""].join(" | ");
+    }
+
+    function buildSkuRows(rows) {
+      const marketingBySku = new Map();
+      rows.forEach((rowData) => {
+        const sku = rowData.SKU || "__SKU_VIDE__";
+        if (!marketingBySku.has(sku)) marketingBySku.set(sku, new Set());
+        if (rowData.MARKETING_NAME) marketingBySku.get(sku).add(rowData.MARKETING_NAME);
+      });
+      const ambiguousSkuSet = new Set([...marketingBySku.entries()].filter(([, names]) => names.size > 5).map(([sku]) => sku));
+      const groups = new Map();
+      rows.forEach((rowData) => {
+        if (!isCountableArticle(rowData)) return;
+        const key = getGroupKey(rowData, ambiguousSkuSet);
+        if (!groups.has(key)) {
+          groups.set(key, {
+            key,
+            sku: isFactice(rowData) ? "FACTICE" : "",
+            skus: new Set(),
+            produit: rowData.PRODUIT || "",
+            produits: new Set(),
+            coloris: rowData.COLORIS || "",
+            colorisSet: new Set(),
+            gamme: rowData.GAMME || "",
+            type: rowData.TYPE || "",
+            types: new Set(),
+            isFactice: isFactice(rowData),
+            qtyKube: 0,
+            qtyStandby: 0,
+            qtyTotal: 0,
+            totalSeen: 0,
+            names: new Map()
+          });
+        }
+        const group = groups.get(key);
+        group.totalSeen += 1;
+        if (!isFactice(rowData) && rowData.SKU) group.skus.add(rowData.SKU);
+        if (rowData.PRODUIT) group.produits.add(rowData.PRODUIT);
+        if (rowData.COLORIS) group.colorisSet.add(rowData.COLORIS);
+        if (rowData.TYPE) group.types.add(rowData.TYPE);
+        if (!group.gamme && rowData.GAMME) group.gamme = rowData.GAMME;
+        if (rowData.MARKETING_NAME) group.names.set(rowData.MARKETING_NAME, (group.names.get(rowData.MARKETING_NAME) || 0) + 1);
+        if (isOwnedStock(rowData)) group.qtyKube += 1;
+        if (isStandbyStock(rowData)) group.qtyStandby += 1;
+      });
+      return [...groups.values()].map((group) => {
+        group.qtyTotal = group.qtyKube + group.qtyStandby;
+        if (group.skus && group.skus.size) group.sku = [...group.skus].sort().join(", ");
+        if (group.produits && group.produits.size) group.produit = [...group.produits].sort().join(", ");
+        if (group.colorisSet && group.colorisSet.size) group.coloris = [...group.colorisSet].sort().join(", ");
+        if (group.types && group.types.size) group.type = [...group.types].sort().join(", ");
+        group.canonicalName = mostFrequentName(group.names) || [group.produit, group.coloris].filter(Boolean).join(" ") || group.sku || "SKU non renseigné";
+        if (group.isFactice && !/\bFACTICE\b/i.test(group.canonicalName)) group.canonicalName = `${group.produit || group.canonicalName} Factice`;
+        const alert = alertForQty(group.qtyTotal);
+        group.alert = alert.id;
+        group.alertLabel = alert.label;
+        return group;
+      });
+    }
+
+    function mostFrequentName(names) {
+      let best = null;
+      names.forEach((count, name) => {
+        if (!best || count > best.count || (count === best.count && name.length > best.name.length)) best = { name, count };
+      });
+      return best ? best.name : "";
+    }
+
+    function alertForQty(qty) {
+      if (qty >= 16) return { id: "ok", label: "OK" };
+      if (qty >= 5) return { id: "low", label: "Bas" };
+      if (qty >= 1) return { id: "critical", label: "Critique" };
+      return { id: "zero", label: "Rupture" };
+    }
+
+    function detectAnomalies(rows) {
+      const anomalies = [];
+      rows.forEach((item) => {
+        if (item.STATUT === "MAGASIN" && item.EMPLACEMENT !== "MAGASIN") anomalies.push(anomaly("Statut magasin incohérent", item, "STATUT = MAGASIN mais EMPLACEMENT différent de MAGASIN"));
+        if (item.STATUT === "STOCK KUBE" && item.EMPLACEMENT !== "KUBE DESIGN") anomalies.push(anomaly("Stock Kube hors entrepôt", item, "STATUT = STOCK KUBE mais EMPLACEMENT différent de KUBE DESIGN"));
+        if (!item.SKU && !isFactice(item)) anomalies.push(anomaly("SKU vide", item, "La référence constructeur est vide ou nulle"));
+        if (item.STATUT && !KNOWN_STATUSES.has(item.STATUT)) anomalies.push(anomaly("Statut non reconnu", item, item.STATUT));
+        if (item.EMPLACEMENT && !KNOWN_LOCATIONS.has(item.EMPLACEMENT)) anomalies.push(anomaly("Emplacement non reconnu", item, item.EMPLACEMENT));
+      });
+      ["IMEI", "SN"].forEach((column) => {
+        const seen = new Map();
+        rows.forEach((item) => {
+          if (!item[column]) return;
+          const key = item[column];
+          if (!seen.has(key)) seen.set(key, []);
+          seen.get(key).push(item);
+        });
+        seen.forEach((items, key) => {
+          if (items.length > 1) {
+            items.forEach((item) => anomalies.push(anomaly(`${column} dupliqué`, item, `${column} ${key} apparaît sur ${items.length} lignes actives`)));
+          }
+        });
+      });
+      return anomalies;
+    }
+
+    function anomaly(type, item, detail) {
+      return { type, detail, ID: item.ID, SKU: item.SKU, STATUT: item.STATUT, EMPLACEMENT: item.EMPLACEMENT, __row: item };
+    }
+
+    function computeMetrics() {
+      const rows = state.rows;
+      const skuRows = state.skuRows;
+      return {
+        physical: rows.filter(isPhysicalStock).length,
+        owned: rows.filter(isOwnedStock).length,
+        standby: rows.filter(isStandbyStock).length,
+        available: rows.filter(isAvailable).length,
+        ok: skuRows.filter((r) => r.alert === "ok").length,
+        low: skuRows.filter((r) => r.alert === "low").length,
+        critical: skuRows.filter((r) => r.alert === "critical").length,
+        zero: skuRows.filter((r) => r.alert === "zero").length,
+        project: rows.filter((r) => r.STATUT === "PROJET" && r.EMPLACEMENT === "KUBE DESIGN").length,
+        hs: rows.filter((r) => r.STATUT === "HS").length,
+        incoming: rows.filter((r) => r.STATUT === "LIVRAISON").length,
+        installedMonth: rows.filter((r) => r.STATUT === "MAGASIN" && isCurrentMonth(r.__livraisonDate)).length,
+        anomalies: state.anomalies.length
+      };
+    }
+
+    function isCurrentMonth(date) {
+      if (!date) return false;
+      const now = new Date();
+      return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+    }
+
+    function isoWeek(date) {
+      const target = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+      const day = target.getUTCDay() || 7;
+      target.setUTCDate(target.getUTCDate() + 4 - day);
+      const yearStart = new Date(Date.UTC(target.getUTCFullYear(), 0, 1));
+      const week = Math.ceil((((target - yearStart) / 86400000) + 1) / 7);
+      return { week, year: target.getUTCFullYear() };
+    }
+
+    function renderKpis() {
+      const m = computeMetrics();
+      const kpis = [
+        ["physical", "Stock physique", m.physical, "blue", () => state.rows.filter(isPhysicalStock)],
+        ["owned", "Stock Kube", m.owned, "green", () => state.rows.filter(isOwnedStock)],
+        ["standby", "Stock standby", m.standby, "orange", () => state.rows.filter(isStandbyStock)],
+        ["low", "Stock 15 à 5", m.low, "orange", () => state.skuRows.filter((r) => r.alert === "low").sort((a, b) => a.qtyTotal - b.qtyTotal)],
+        ["critical", "Stock 5 à 0", m.critical + m.zero, "red critical", () => state.skuRows.filter((r) => r.alert === "critical" || r.alert === "zero").sort((a, b) => a.qtyTotal - b.qtyTotal)],
+        ["project", "Réservé projet", m.project, "blue", () => state.rows.filter((r) => r.STATUT === "PROJET" && r.EMPLACEMENT === "KUBE DESIGN")],
+        ["hs", "HS", m.hs, "red", () => state.rows.filter((r) => r.STATUT === "HS")],
+        ["anomalies", "Anomalies", m.anomalies, "red", () => state.anomalies]
+      ];
+      document.getElementById("kpiGrid").innerHTML = kpis.map(([id, label, value, color]) =>
+        `<button class="kpi ${color}" type="button" data-kpi="${id}"><strong>${value}</strong><span>${label}</span></button>`
+      ).join("");
+      kpis.forEach(([id, label, , , provider]) => {
+        document.querySelector(`[data-kpi="${id}"]`).addEventListener("click", () => openDrawer(label, provider()));
+      });
+    }
+
+    function renderTabs() {
+      document.getElementById("tabs").innerHTML = tabs.map((tab) =>
+        `<button class="tab ${tab.id === state.currentTab ? "active" : ""}" type="button" data-tab="${tab.id}">${tab.label}</button>`
+      ).join("");
+      document.querySelectorAll("[data-tab]").forEach((button) => {
+        button.addEventListener("click", () => {
+          state.currentTab = button.dataset.tab;
+          state.page = 1;
+          state.sort = defaultSortForTab(state.currentTab);
+          renderAll();
+        });
+      });
+    }
+
+    function pageConfig(tab) {
+      const configs = {
+        sku: {
+          title: "Stock par produit",
+          intro: "Suivi du stock disponible, des produits KUBE DESIGN, standby, factices et alertes par PRODUIT.",
+          showImport: true,
+          charts: "stock",
+          tools: "standard"
+        },
+        detail: {
+          title: "Détail unitaire",
+          intro: "Toutes les lignes importées depuis SODA, avec SKU, IMEI, SN, statut, emplacement et destination.",
+          tools: "standard"
+        },
+        technicians: {
+          title: "Techniciens",
+          intro: "Interventions de l’année en cours : qui est parti, quand, avec quel produit, IMEI et SN. Utilise la recherche dédiée pour retrouver un IMEI ou un SN.",
+          charts: "technicians",
+          tools: "technicians"
+        },
+        planning: {
+          title: "Plannings",
+          intro: "Vue planning issue de la colonne PLANNING, avec séparation automatique des interventions à deux techniciens.",
+          tools: "standard"
+        },
+        anomalies: {
+          title: "Anomalies",
+          intro: "Contrôles automatiques : statuts incohérents, SKU manquants non factices, doublons IMEI/SN et valeurs non reconnues.",
+          tools: "standard"
+        },
+        history: {
+          title: "Historique des imports",
+          intro: "Imports sauvegardés dans le navigateur. Le dernier import est repris automatiquement à l’ouverture.",
+          tools: "history"
+        },
+        help: {
+          title: "Mode d'emploi",
+          intro: "Explication des indicateurs, graphiques, alertes, factices, techniciens, historique et reporting.",
+          tools: "none"
+        }
+      };
+      return configs[tab] || configs.sku;
+    }
+
+    function renderPageLayout() {
+      const config = pageConfig(state.currentTab);
+      document.getElementById("dropZone").classList.toggle("hidden", !config.showImport);
+      document.getElementById("charts").classList.toggle("hidden", !config.charts);
+      document.querySelectorAll("[data-chart-page]").forEach((box) => {
+        box.classList.toggle("hidden", !config.charts || !box.dataset.chartPage.split(" ").includes(config.charts));
+      });
+      document.getElementById("pageIntro").innerHTML = `<strong>${escapeHtml(config.title)}</strong>${escapeHtml(config.intro)}`;
+      document.getElementById("tableTitle").textContent = config.title;
+    }
+
+    function defaultSortForTab(tab) {
+      if (tab === "sku") return { key: "qtyTotal", dir: "desc" };
+      if (tab === "technicians") return { key: "LIVRAISON", dir: "desc" };
+      if (tab === "planning") return { key: "week", dir: "asc" };
+      if (tab === "history") return { key: "importedAt", dir: "desc" };
+      if (tab === "help") return { key: "theme", dir: "asc" };
+      return { key: "__index", dir: "asc" };
+    }
+
+    function currentRows() {
+      if (state.currentTab === "sku") return state.skuRows;
+      if (state.currentTab === "technicians") return technicianRows();
+      if (state.currentTab === "planning") return planningRows();
+      if (state.currentTab === "anomalies") return state.anomalies;
+      if (state.currentTab === "history") return importHistoryRows();
+      if (state.currentTab === "help") return helpRows();
+      return state.rows;
+    }
+
+    function helpRows() {
+      return [
+        { theme: "Stock physique", description: "Tous les articles physiquement présents chez KUBE DESIGN et comptables selon les règles produit." },
+        { theme: "Stock Kube", description: "Articles avec STATUT = STOCK KUBE et EMPLACEMENT = KUBE DESIGN." },
+        { theme: "Stock standby", description: "Articles avec STATUT = STANDBY et EMPLACEMENT = KUBE DESIGN." },
+        { theme: "Stock 15 à 5 / 5 à 0", description: "Les alertes se calculent par PRODUIT. De 15 à 5 : orange. De 5 à 0 : rouge." },
+        { theme: "Réservé projet", description: "Articles avec STATUT = PROJET et EMPLACEMENT = KUBE DESIGN." },
+        { theme: "HS", description: "Articles avec STATUT = HS — produits Grade D." },
+        { theme: "Factices", description: "Un article est factice si SKU = FACTICE, TYPE = FACTICE, ou s’il n’a ni IMEI ni SN. Les factices sont séparés du produit réel dans le stock." },
+        { theme: "Graphiques", description: "Chaque graphique est cliquable. Cliquer sur une barre ou une portion ouvre le détail filtré correspondant." },
+        { theme: "Indicateurs", description: "Chaque indicateur du haut est cliquable et ouvre la liste détaillée des lignes concernées." },
+        { theme: "Import", description: "À chaque ouverture, aucune donnée n’est chargée. Importez votre BDD pour travailler. Chaque import remplace le précédent." },
+        { theme: "Générer l’AD STOCK KUBE", description: "Exporte un fichier XLS avec deux feuilles : TCD (pivot MARKETING_NAME × STATUT, TYPE = RDU/LDU) et BDD (toutes les lignes). Les cellules STOCK KUBE sont colorées en orange selon le seuil." },
+        { theme: "Anomalies", description: "L’onglet Anomalies liste les incohérences détectées : statuts incohérents, SKU manquants, valeurs non reconnues." }
+      ];
+    }
+
+    function importHistoryRows() {
+      return state.history.map((entry) => ({
+        ...entry,
+        importedAtLabel: formatDateTime(entry.importedAt),
+        status: entry.id === currentImportId() ? "Import actif" : "",
+        action: entry.id === currentImportId() ? "Actif" : "Charger"
+      }));
+    }
+
+    function planningRows() {
+      return state.rows.filter((r) => r.__planning.raw).flatMap((r) => {
+        const techniciens = r.__planning.techniciens && r.__planning.techniciens.length ? r.__planning.techniciens : [r.__planning.technicien || "Non renseigné"];
+        return techniciens.map((technicien) => ({
+          ...r,
+          technicien,
+          techniciens: techniciens.join(" / "),
+          week: r.__planning.week,
+          year: r.__planning.year
+        }));
+      });
+    }
+
+    function technicianRows() {
+      const currentYear = new Date().getFullYear();
+      return planningRows().filter((rowData) => {
+        const livraisonYear = rowData.__livraisonDate ? rowData.__livraisonDate.getFullYear() : null;
+        return rowData.year === currentYear || livraisonYear === currentYear;
+      });
+    }
+
+    function applyFilters(rows) {
+      const gamme = state.gammeFilter;
+      const q = state.globalSearch.toUpperCase();
+      return rows.filter((r) => {
+        if (gamme && r.GAMME !== gamme && r.gamme !== gamme) return false;
+        if (state.currentTab === "technicians" && state.techSearch) {
+          const techQuery = state.techSearch.toUpperCase();
+          const techHaystack = [r.IMEI, r.SN, r.technicien, r.techniciens, r.MARKETING_NAME, r.PRODUIT, r.SKU, r.MAGASIN].filter(Boolean).join(" ").toUpperCase();
+          if (!techHaystack.includes(techQuery)) return false;
+        }
+        if (!q) return true;
+        if (r.__search) return r.__search.includes(q);
+        return Object.values(r).filter((v) => typeof v !== "object").join(" ").toUpperCase().includes(q);
+      });
+    }
+
+    function sortRows(rows) {
+      const { key, dir } = state.sort;
+      return [...rows].sort((a, b) => {
+        const va = a[key] ?? "";
+        const vb = b[key] ?? "";
+        const result = typeof va === "number" && typeof vb === "number" ? va - vb : String(va).localeCompare(String(vb), "fr", { numeric: true });
+        return dir === "asc" ? result : -result;
+      });
+    }
+
+    function renderTable() {
+      const tab = state.currentTab;
+      const config = pageConfig(tab);
+      const rows = sortRows(applyFilters(currentRows()));
+      state.filteredRows = rows;
+      const cols = columns[tab];
+      const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+      state.page = Math.min(state.page, totalPages);
+      const pageRows = rows.slice((state.page - 1) * PAGE_SIZE, state.page * PAGE_SIZE);
+      document.getElementById("tableTitle").textContent = config.title;
+      document.getElementById("dataTable").innerHTML = tableHtml(cols, pageRows, true);
+      document.querySelectorAll("#dataTable th[data-key]").forEach((th) => {
+        th.addEventListener("click", () => {
+          const key = th.dataset.key;
+          state.sort = { key, dir: state.sort.key === key && state.sort.dir === "asc" ? "desc" : "asc" };
+          renderTable();
+        });
+      });
+      attachHistoryActions();
+      document.getElementById("pageInfo").textContent = `${rows.length} lignes - page ${state.page}/${totalPages}`;
+      document.getElementById("prevPage").disabled = state.page <= 1;
+      document.getElementById("nextPage").disabled = state.page >= totalPages;
+      renderTableTools();
+    }
+
+    function tableHtml(cols, rows, sortable) {
+      if (!rows.length) return `<tbody><tr><td class="empty">Aucune ligne à afficher</td></tr></tbody>`;
+      const head = `<thead><tr>${cols.map(([key, label]) => `<th ${sortable ? `data-key="${escapeHtml(key)}"` : ""}>${escapeHtml(label)}</th>`).join("")}</tr></thead>`;
+      const body = `<tbody>${rows.map((rowData) => `<tr>${cols.map(([key]) => `<td>${cellHtml(rowData, key)}</td>`).join("")}</tr>`).join("")}</tbody>`;
+      return head + body;
+    }
+
+    function cellHtml(rowData, key) {
+      const value = rowData[key];
+      if (key === "action" && rowData.id) {
+        const disabled = rowData.id === currentImportId() ? "disabled" : "";
+        return `<button type="button" data-load-import="${escapeHtml(rowData.id)}" ${disabled}>${escapeHtml(value || "")}</button>`;
+      }
+      if (key === "alertLabel") {
+        const cls = rowData.alert === "ok" ? "ok" : rowData.alert === "low" ? "low" : rowData.alert === "critical" ? "critical" : "zero";
+        return `<span class="pill ${cls}">${escapeHtml(value || "")}</span>`;
+      }
+      return escapeHtml(value === null || value === undefined ? "" : String(value));
+    }
+
+    function attachHistoryActions() {
+      document.querySelectorAll("[data-load-import]").forEach((button) => {
+        button.addEventListener("click", () => restoreHistoryImport(button.dataset.loadImport));
+      });
+    }
+
+    function renderTableTools() {
+      const config = pageConfig(state.currentTab);
+      if (config.tools === "none") {
+        document.getElementById("tableTools").innerHTML = "";
+        return;
+      }
+      const distinctGammes = [...new Set(state.rows.map((r) => r.GAMME).filter(Boolean))].sort();
+      const technicianSearch = config.tools === "technicians" ? `
+        <input id="techSearch" type="search" placeholder="Rechercher IMEI, SN, technicien, produit" value="${escapeHtml(state.techSearch)}">
+      ` : "";
+      const gammeSelect = config.tools === "history" ? "" : `
+        <select id="gammeFilter">
+          <option value="">Toutes gammes</option>
+          ${distinctGammes.map((g) => `<option value="${escapeHtml(g)}" ${state.gammeFilter === g ? "selected" : ""}>${escapeHtml(g)}</option>`).join("")}
+        </select>
+      `;
+      document.getElementById("tableTools").innerHTML = `
+        ${technicianSearch}
+        ${gammeSelect}
+        <button id="exportReporting" class="primary" type="button">Générer l'AD STOCK KUBE</button>
+        <button id="exportCsv" type="button">Exporter CSV</button>
+        <button id="exportXlsx" type="button">Exporter Excel</button>
+      `;
+      const filter = document.getElementById("gammeFilter");
+      if (filter) {
+        filter.addEventListener("change", () => {
+          state.gammeFilter = filter.value;
+          state.page = 1;
+          renderTable();
+        });
+      }
+      const techSearch = document.getElementById("techSearch");
+      if (techSearch) {
+        techSearch.addEventListener("input", () => {
+          state.techSearch = techSearch.value.trim();
+          state.page = 1;
+          renderTable();
+        });
+      }
+      document.getElementById("exportReporting").addEventListener("click", exportSamsungReporting);
+      document.getElementById("exportCsv").addEventListener("click", () => exportCsv(state.filteredRows, `${state.currentTab}.csv`));
+      document.getElementById("exportXlsx").addEventListener("click", () => exportXlsx(state.filteredRows, `${state.currentTab}.xlsx`));
+    }
+
+    function renderCharts() {
+      const expediteurRows = state.rows.filter((r) => isUsefulChartValue(r.EXPEDITEUR));
+      const availableRows = state.rows.filter(isAvailable);
+      makeChart("standbyChart", "pie", countBy(expediteurRows, "EXPEDITEUR"), expediteurRows, "EXPEDITEUR", "Expéditeur");
+
+      makeChart("brandChart", "bar", countBy(state.rows.filter((r) => isUsefulChartValue(r.ENSEIGNE)), "ENSEIGNE"), state.rows.filter((r) => isUsefulChartValue(r.ENSEIGNE)), "ENSEIGNE", "Enseigne");
+      makeChart("rangeChart", "doughnut", countBy(availableRows, "GAMME"), availableRows, "GAMME", "Gamme");
+    }
+
+    function countBy(rows, key) {
+      const map = new Map();
+      rows.forEach((r) => {
+        const value = r[key] || "Non renseigné";
+        if (!isUsefulChartValue(value)) return;
+        map.set(value, (map.get(value) || 0) + 1);
+      });
+      return [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+    }
+
+    function isUsefulChartValue(value) {
+      const text = normalizeValue(value, "");
+      const upper = text ? text.toUpperCase() : "";
+      return Boolean(upper && upper !== "X" && upper !== "NON RENSEIGNÉ" && upper !== "NON RENSEIGNE");
+    }
+
+    function makeChart(id, type, entries, sourceRows = [], filterKey = null, title = "Graphique") {
+      const canvas = document.getElementById(id);
+      if (state.charts[id]) state.charts[id].destroy();
+      const labels = entries.map(([label]) => label);
+      const values = entries.map(([, value]) => value);
+      state.charts[id] = new Chart(canvas, {
+        type,
+        data: {
+          labels,
+          datasets: [{
+            data: values,
+            backgroundColor: ["#0b5cab", "#2e7d32", "#d98200", "#c62828", "#6a5acd", "#00838f", "#7b4b22", "#5d6d7e", "#607d8b", "#9c27b0"]
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          onHover: (event, elements) => {
+            event.native.target.style.cursor = elements.length ? "pointer" : "default";
+          },
+          onClick: (event, elements) => {
+            if (!elements.length || !filterKey) return;
+            const label = labels[elements[0].index];
+            const detailRows = sourceRows.filter((rowData) => (rowData[filterKey] || "Non renseigné") === label);
+            openDrawer(`${title} - ${label}`, detailRows);
+          },
+          plugins: { legend: { position: type === "bar" ? "top" : "bottom", labels: { boxWidth: 12 } } },
+          scales: type === "bar" ? { y: { beginAtZero: true, ticks: { precision: 0 } } } : {}
+        }
+      });
+    }
+
+    function openDrawer(title, rows) {
+      state.drawerRows = rows;
+      state.drawerTitle = title;
+      const tab = rows[0] && Object.prototype.hasOwnProperty.call(rows[0], "detail") ? "anomalies" : rows[0] && Object.prototype.hasOwnProperty.call(rows[0], "qtyTotal") ? "sku" : rows[0] && Object.prototype.hasOwnProperty.call(rows[0], "week") ? "planning" : "detail";
+      document.getElementById("drawerTitle").textContent = title;
+      document.getElementById("drawerMeta").textContent = `${rows.length} lignes`;
+      document.getElementById("drawerTable").innerHTML = tableHtml(columns[tab], rows, false);
+      document.getElementById("drawerBackdrop").classList.add("open");
+      document.getElementById("drawer").classList.add("open");
+      document.getElementById("drawer").setAttribute("aria-hidden", "false");
+    }
+
+    function closeDrawer() {
+      document.getElementById("drawerBackdrop").classList.remove("open");
+      document.getElementById("drawer").classList.remove("open");
+      document.getElementById("drawer").setAttribute("aria-hidden", "true");
+    }
+
+    function loadRows(inputRows, fileName, options = {}) {
+      const importedAt = options.importedAt ? new Date(options.importedAt) : new Date();
+      state.rawRows = inputRows;
+      state.rows = normalizeRows(inputRows);
+      state.skuRows = buildSkuRows(state.rows);
+      state.anomalies = detectAnomalies(state.rows);
+      state.fileName = fileName;
+      state.importedAt = importedAt;
+      state.currentTab = options.keepTab ? state.currentTab : "sku";
+      state.page = 1;
+      state.sort = defaultSortForTab(state.currentTab);
+      document.getElementById("fileMeta").textContent = `${fileName} - ${state.rows.length} lignes - import ${state.importedAt.toLocaleString("fr-FR")}`;
+      if (options.persist) persistImport(inputRows, fileName, state.importedAt);
+      renderAll();
+    }
+
+    function persistImport(rows, fileName, importedAt) {
+      const metrics = computeMetrics();
+      const payload = {
+        id: `import-${Date.now()}`,
+        fileName,
+        importedAt: importedAt.toISOString(),
+        rowCount: rows.length,
+        physical: metrics.physical,
+        owned: metrics.owned,
+        standby: metrics.standby,
+        rows
+      };
+      state.history = [payload, ...state.history.filter((entry) => entry.id !== payload.id)].slice(0, IMPORT_HISTORY_LIMIT);
+      saveJson(IMPORT_HISTORY_KEY, state.history);
+      saveJson(CURRENT_IMPORT_KEY, payload);
+    }
+
+    function restoreHistoryImport(id) {
+      const entry = state.history.find((item) => item.id === id);
+      if (!entry) return;
+      saveJson(CURRENT_IMPORT_KEY, entry);
+      loadRows(entry.rows, entry.fileName, { importedAt: entry.importedAt, keepTab: true });
+      state.currentTab = "history";
+      state.sort = defaultSortForTab("history");
+      renderAll();
+    }
+
+    function loadSavedState() {
+      state.history = readJson(IMPORT_HISTORY_KEY, []);
+      const current = readJson(CURRENT_IMPORT_KEY, null);
+      if (current && Array.isArray(current.rows)) {
+        loadRows(current.rows, current.fileName || "Import sauvegardé", { importedAt: current.importedAt });
+        return true;
+      }
+      return false;
+    }
+
+    function currentImportId() {
+      const current = readJson(CURRENT_IMPORT_KEY, null);
+      return current ? current.id : null;
+    }
+
+    function readJson(key, fallback) {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : fallback;
+      } catch (error) {
+        return fallback;
+      }
+    }
+
+    function saveJson(key, value) {
+      try {
+        localStorage.setItem(key, JSON.stringify(value));
+      } catch (error) {
+        console.warn("Import non sauvegardé dans le navigateur", error);
+      }
+    }
+
+    function formatDateTime(value) {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "";
+      return date.toLocaleString("fr-FR");
+    }
+
+    function renderAll() {
+      renderKpis();
+      renderTabs();
+      renderPageLayout();
+      renderCharts();
+      renderTable();
+    }
+
+    function handleFile(file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const data = event.target.result;
+        const workbook = XLSX.read(data, { type: "array", cellDates: false });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { defval: null, raw: true })
+          .filter(r => Object.values(r).some(v => v !== null && v !== "" && v !== undefined));
+        loadRows(rows, file.name, { persist: true });
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function exportSamsungReporting() {
+      const TCD_STATUTS = ["CDM IDF", "CDM PROVINCE", "HS", "LIVRAISON", "MAGASIN", "PROJET", "STANDBY", "STOCK KUBE", "VOL"];
+      const BDD_COLS = ["GAMME", "PRODUIT", "TYPE", "COLORIS", "MARKETING_NAME", "SKU", "IMEI", "SN", "STATUT", "EMPLACEMENT", "EXPEDITEUR", "LIVRAISON", "ENSEIGNE", "MAGASIN", "PLANNING", "MOBILIER", "COMMENTAIRE"];
+
+      const LEGEND = [
+        "HS = Produit Grade D", "LIVRAISON = Demande du client",
+        "MAGASIN = Présence sur place", "PROJET = Réf mise de côté",
+        "CDM PROVINCE = Stock maintenance en région", "CDM IDF = Stock maintenance en région",
+        "VOL = Bloqués sur Knox", "STOCK KUBE = Stock dispo à date",
+        null, null,
+        { v: "Entre 0 < 5", s: "alertCrit" }, { v: "Entre 5 < 10", s: "alertLow" }
+      ];
+
+      const withLegend = (base, idx) => {
+        const legendIdx = idx - 3;
+        const leg = legendIdx >= 0 && legendIdx < LEGEND.length ? LEGEND[legendIdx] : null;
+        if (!leg) return base;
+        const row = [...base];
+        while (row.length < 13) row.push("");
+        if (typeof leg === "string") {
+          row[13] = { v: leg, s: "legendBorder" };
+        } else {
+          row[13] = { v: leg.v, s: leg.s === "alertCrit" ? "alertCritBorder" : leg.s === "alertLow" ? "alertLowBorder" : "legendBorder" };
+        }
+        return row;
+      };
+
+      const pad = (v) => String(v).padStart(2, "0");
+      const fmtDate = (r) => {
+        if (r.__livraisonDate) {
+          const d = r.__livraisonDate;
+          return `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
+        }
+        return r.LIVRAISON ?? "";
+      };
+      const toRow = (r) => BDD_COLS.map((c) => c === "LIVRAISON" ? fmtDate(r) : (r[c] ?? ""));
+
+      // BDD
+      const bddRows = [BDD_COLS, ...state.rows.map(toRow)];
+
+      // TCD pivot
+      const pivot = {};
+      state.rows.forEach((r) => {
+        if (r.TYPE !== "RDU" && r.TYPE !== "LDU") return;
+        const name = r.MARKETING_NAME;
+        if (!name) return;
+        if (!pivot[name]) pivot[name] = {};
+        if (r.STATUT) pivot[name][r.STATUT] = (pivot[name][r.STATUT] || 0) + 1;
+      });
+
+      const names = Object.keys(pivot).sort((a, b) => a.localeCompare(b, "fr"));
+
+      // Grouper les lignes par (MARKETING_NAME, STATUT)
+      const grouped = {};
+      state.rows.forEach((r) => {
+        if (r.TYPE !== "RDU" && r.TYPE !== "LDU") return;
+        const key = `${r.MARKETING_NAME}||${r.STATUT}`;
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(r);
+      });
+
+      // Une feuille visible par cellule non vide — contient uniquement ce produit × statut
+      const cellSheetMap = {};
+      const miniSheets = [];
+      let dIdx = 0;
+      names.forEach((name) => {
+        TCD_STATUTS.forEach((s) => {
+          const src = grouped[`${name}||${s}`];
+          if (!src || !src.length) return;
+          const sName = `D${++dIdx}`;
+          cellSheetMap[`${name}||${s}`] = sName;
+          miniSheets.push({ name: sName, rows: [BDD_COLS, ...src.map(toRow)] });
+        });
+      });
+      const totals = Object.fromEntries(TCD_STATUTS.map((s) => [s, 0]));
+
+      const tcdDataRows = names.map((name) => {
+        TCD_STATUTS.forEach((s) => { if (pivot[name][s]) totals[s] += pivot[name][s]; });
+        const counts = TCD_STATUTS.map((s) => {
+          const count = pivot[name][s];
+          const sName = cellSheetMap[`${name}||${s}`];
+          const href = sName ? `#'${sName}'!A1` : "";
+          if (s === "STOCK KUBE") {
+            const style = !count || count <= 4 ? "alertCrit" : count <= 9 ? "alertLow" : "";
+            return { v: count || null, href, s: style };
+          }
+          if (!count) return null;
+          return { v: count, href, s: "" };
+        });
+        return [name, ...counts];
+      });
+
+      const metaRows = [
+        ["Nombre de STATUT", "Étiquettes de colonnes"],
+        ["Étiquettes de lignes", ...TCD_STATUTS]
+      ];
+      const totalRow = ["Total général", ...TCD_STATUTS.map((s) => totals[s] || null)];
+
+      const tcdRows = [
+        ...metaRows.map((r, i) => withLegend(r, i)),
+        ...tcdDataRows.map((r, i) => withLegend(r, i + metaRows.length)),
+        totalRow
+      ];
+
+      const tcdStyleForRow = (rowData, idx) => {
+        if (idx < 2) return "header";
+        if (rowData[0] === "Total général") return "header";
+        return "";
+      };
+
+      exportStyledExcel([
+        { name: "TCD", rows: tcdRows, styleForRow: tcdStyleForRow },
+        { name: "BDD", rows: bddRows },
+        ...miniSheets
+      ], `STOCK KUBE ${dateStampFR(new Date())}.xls`);
+    }
+
+    function reportSkuRow(rowData) {
+      return {
+        "Marketing name": rowData.canonicalName,
+        "SKU": rowData.sku,
+        "Gamme": rowData.gamme,
+        "Produit": rowData.produit,
+        "Type": rowData.type,
+        "Stock KUBE DESIGN": rowData.qtyKube,
+        "Stock STANDBY": rowData.qtyStandby,
+        "Stock total": rowData.qtyTotal,
+        "Alerte": rowData.alertLabel
+      };
+    }
+
+    function dateStamp(date) {
+      const pad = (value) => String(value).padStart(2, "0");
+      return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}_${pad(date.getHours())}${pad(date.getMinutes())}`;
+    }
+
+    function dateStampFR(date) {
+      const pad = (value) => String(value).padStart(2, "0");
+      return `${pad(date.getDate())}${pad(date.getMonth() + 1)}${date.getFullYear()}`;
+    }
+
+    function exportCsv(rows, fileName) {
+      const sheet = XLSX.utils.json_to_sheet(rows.map(cleanExportRow));
+      const csv = XLSX.utils.sheet_to_csv(sheet, { FS: ";" });
+      download(new Blob([csv], { type: "text/csv;charset=utf-8" }), fileName);
+    }
+
+    function exportXlsx(rows, fileName) {
+      if (rows.some((rowData) => Object.prototype.hasOwnProperty.call(rowData, "alert"))) {
+        exportStyledExcel([
+          { name: "Export", rows: rows.map((rowData) => Object.prototype.hasOwnProperty.call(rowData, "qtyTotal") ? reportSkuRow(rowData) : cleanExportRow(rowData)), styleForRow: alertStyleForExport }
+        ], fileName.replace(/\.xlsx$/i, ".xls"));
+        return;
+      }
+      const workbook = XLSX.utils.book_new();
+      const sheet = XLSX.utils.json_to_sheet(rows.map(cleanExportRow));
+      XLSX.utils.book_append_sheet(workbook, sheet, "Export");
+      XLSX.writeFile(workbook, fileName);
+    }
+
+    function exportStyledExcel(sheets, fileName) {
+      const workbookXml = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:html="http://www.w3.org/TR/REC-html40">
+ <Styles>
+  <Style ss:ID="Default" ss:Name="Normal"><Alignment ss:Vertical="Center"/></Style>
+  <Style ss:ID="header"><Font ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#0070C0" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="lowOrange"><Interior ss:Color="#FFE5C2" ss:Pattern="Solid"/><Font ss:Color="#7A3E00"/></Style>
+  <Style ss:ID="criticalRed"><Interior ss:Color="#F8D7DA" ss:Pattern="Solid"/><Font ss:Color="#8A1C1C"/></Style>
+  <Style ss:ID="infoBlue"><Interior ss:Color="#D9EAF7" ss:Pattern="Solid"/><Font ss:Color="#17456F"/></Style>
+  <Style ss:ID="alertCrit"><Interior ss:Color="#FF6600" ss:Pattern="Solid"/><Font ss:Color="#000000"/></Style>
+  <Style ss:ID="alertLow"><Interior ss:Color="#FF9933" ss:Pattern="Solid"/><Font ss:Color="#000000"/></Style>
+  <Style ss:ID="legendBorder"><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/><Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/></Borders></Style>
+  <Style ss:ID="alertCritBorder"><Interior ss:Color="#FF6600" ss:Pattern="Solid"/><Font ss:Color="#000000"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/><Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/></Borders></Style>
+  <Style ss:ID="alertLowBorder"><Interior ss:Color="#FF9933" ss:Pattern="Solid"/><Font ss:Color="#000000"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/><Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/></Borders></Style>
+ </Styles>
+ ${sheets.map(sheetToXml).join("")}
+</Workbook>`;
+      download(new Blob([workbookXml], { type: "application/vnd.ms-excel;charset=utf-8" }), fileName);
+    }
+
+    function sheetToXml(sheet) {
+      const rows = sheet.rows || [];
+      let tableRows;
+      if (!rows.length) {
+        tableRows = [rowToXml([], "header")];
+      } else if (Array.isArray(rows[0])) {
+        tableRows = rows.map((rowData, index) => rowToXml(rowData, sheet.styleForRow ? sheet.styleForRow(rowData, index) : (index === 0 ? "header" : "")));
+      } else {
+        const headers = Object.keys(rows[0]);
+        tableRows = [
+          rowToXml(headers, "header"),
+          ...rows.map((rowData) => rowToXml(headers.map((header) => rowData[header]), sheet.styleForRow?.(rowData) || ""))
+        ];
+      }
+      const hiddenXml = sheet.hidden ? `<WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel"><Visible>SheetHidden</Visible></WorksheetOptions>` : "";
+      return `<Worksheet ss:Name="${xmlEscape(sheet.name.slice(0, 31))}"><Table>${tableRows.join("")}</Table>${hiddenXml}</Worksheet>`;
+    }
+
+    function rowToXml(rowData, styleId) {
+      const style = styleId ? ` ss:StyleID="${styleId}"` : "";
+      return `<Row${style}>${rowData.map(cellToXml).join("")}</Row>`;
+    }
+
+    function cellToXml(value) {
+      let v = value, styleId = "", href = "";
+      if (value !== null && typeof value === "object" && !Array.isArray(value) && "v" in value) {
+        v = value.v; styleId = value.s || ""; href = value.href || "";
+      }
+      const style = styleId ? ` ss:StyleID="${styleId}"` : "";
+      const hrefAttr = href ? ` ss:HRef="${xmlEscape(href)}"` : "";
+      const isNumber = typeof v === "number" && Number.isFinite(v);
+      const type = isNumber ? "Number" : "String";
+      return `<Cell${style}${hrefAttr}><Data ss:Type="${type}">${xmlEscape(v === null || v === undefined ? "" : String(v))}</Data></Cell>`;
+    }
+
+    function alertStyleForExport(rowData) {
+      if (rowData.Alerte === "Bas" || rowData.alert === "low") return "lowOrange";
+      if (rowData.Alerte === "Critique" || rowData.Alerte === "Rupture" || rowData.alert === "critical" || rowData.alert === "zero") return "criticalRed";
+      return "";
+    }
+
+    function anomalyStyleForExport(rowData) {
+      if (rowData.type === "Statut magasin incohérent") return "infoBlue";
+      return "";
+    }
+
+    function cleanExportRow(rowData) {
+      const out = {};
+      Object.entries(rowData).forEach(([key, value]) => {
+        if (key.startsWith("__") || key === "skus" || key === "produits" || key === "colorisSet" || key === "types" || key === "names") return;
+        if (typeof value !== "object") out[key] = value;
+      });
+      return out;
+    }
+
+    function download(blob, fileName) {
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = fileName;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[char]));
+    }
+
+    function xmlEscape(value) {
+      return String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[char]));
+    }
+
+    document.getElementById("browseBtn").addEventListener("click", () => document.getElementById("fileInput").click());
+    document.getElementById("newImportBtn").addEventListener("click", () => document.getElementById("fileInput").click());
+    document.getElementById("reportingBtn").addEventListener("click", exportSamsungReporting);
+    document.getElementById("fileInput").addEventListener("change", (event) => {
+      if (event.target.files[0]) handleFile(event.target.files[0]);
+      event.target.value = "";
+    });
+    document.getElementById("globalSearch").addEventListener("input", (event) => {
+      const q = event.target.value.trim();
+      state.globalSearch = q;
+      state.page = 1;
+      if (q && state.currentTab === "sku") {
+        state.currentTab = "detail";
+        state.sort = defaultSortForTab("detail");
+      } else if (!q && state.currentTab === "detail") {
+        state.currentTab = "sku";
+        state.sort = defaultSortForTab("sku");
+      }
+      renderAll();
+    });
+    document.getElementById("prevPage").addEventListener("click", () => { state.page -= 1; renderTable(); });
+    document.getElementById("nextPage").addEventListener("click", () => { state.page += 1; renderTable(); });
+    document.getElementById("drawerClose").addEventListener("click", closeDrawer);
+    document.getElementById("drawerBackdrop").addEventListener("click", closeDrawer);
+    document.getElementById("drawerCsv").addEventListener("click", () => exportCsv(state.drawerRows, `${state.drawerTitle}.csv`));
+    document.getElementById("drawerXlsx").addEventListener("click", () => exportXlsx(state.drawerRows, `${state.drawerTitle}.xlsx`));
+
+    const dropZone = document.getElementById("dropZone");
+    dropZone.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      dropZone.classList.add("dragging");
+    });
+    dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragging"));
+    dropZone.addEventListener("drop", (event) => {
+      event.preventDefault();
+      dropZone.classList.remove("dragging");
+      if (event.dataTransfer.files[0]) handleFile(event.dataTransfer.files[0]);
+    });
+
+    state.history = readJson(IMPORT_HISTORY_KEY, []);
+    localStorage.removeItem(CURRENT_IMPORT_KEY);
+    document.getElementById("fileMeta").textContent = "Aucune donnée — importez un fichier";
+    renderAll();
+  </script>
+</body>
+</html>
