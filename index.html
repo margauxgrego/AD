@@ -921,9 +921,16 @@
             state.currentTab = provider;
             state.page = 1;
             state.sort = defaultSortForTab(provider);
-            renderAll();
+            showLoading();
+            setTimeout(() => renderAll(), 0);
           } else {
-            openDrawer(label, provider());
+            showDrawerLoading();
+            document.getElementById("drawerTitle").textContent = label;
+            document.getElementById("drawerMeta").textContent = "";
+            document.getElementById("drawerBackdrop").classList.add("open");
+            document.getElementById("drawer").classList.add("open");
+            document.getElementById("drawer").setAttribute("aria-hidden", "false");
+            setTimeout(() => openDrawer(label, provider()), 0);
           }
         });
       });
@@ -1462,7 +1469,11 @@
     }
 
     function showLoading() {
-      document.getElementById("dataTable").innerHTML = `<tr><td colspan="20" style="text-align:center;padding:2rem;color:#666">En chargement…</td></tr>`;
+      document.getElementById("dataTable").innerHTML = `<tr><td colspan="20" style="text-align:center;padding:2.5rem"><span style="display:inline-block;background:#b8d8f0;color:#1a3f5c;border:1.5px solid #5a9ec9;border-radius:8px;padding:.6rem 1.6rem;font-weight:600;font-size:.95rem">En chargement…</span></td></tr>`;
+    }
+
+    function showDrawerLoading() {
+      document.getElementById("drawerTable").innerHTML = `<tr><td colspan="20" style="text-align:center;padding:2.5rem"><span style="display:inline-block;background:#b8d8f0;color:#1a3f5c;border:1.5px solid #5a9ec9;border-radius:8px;padding:.6rem 1.6rem;font-weight:600;font-size:.95rem">En chargement…</span></td></tr>`;
     }
 
     function handleFile(file) {
