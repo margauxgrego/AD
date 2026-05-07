@@ -102,6 +102,16 @@
       margin-top: 1px;
     }
 
+    .pager { display: flex; align-items: center; gap: 12px; padding: 10px 0; flex-wrap: wrap; }
+    .page-info { color: var(--muted); font-size: 12px; }
+    .page-btns { display: flex; gap: 3px; align-items: center; }
+    .page-btn { min-width: 30px; height: 30px; padding: 0 7px; border: 1px solid #d0d7de; border-radius: 6px; background: #fff; cursor: pointer; font-size: 13px; color: #24292f; line-height: 1; }
+    .page-btn:hover:not([disabled]) { background: #f0f3f9; }
+    .page-btn.page-active { background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 600; cursor: default; }
+    .page-btn[disabled] { opacity: 0.35; cursor: not-allowed; }
+    .page-btn.page-ellipsis { border: none; background: none; color: var(--primary); font-size: 15px; }
+    .page-btn.page-ellipsis:hover { background: #f0f3f9; border-radius: 6px; }
+
     .btn-reset {
       background: #e8f0fe;
       border: 1px solid #aac4f0;
@@ -556,13 +566,7 @@
         <div class="table-wrap">
           <table id="dataTable"></table>
         </div>
-        <div class="pager">
-          <div id="pageInfo"></div>
-          <div class="tools">
-            <button id="prevPage" type="button">Précédent</button>
-            <button id="nextPage" type="button">Suivant</button>
-          </div>
-        </div>
+        <div class="pager" id="pager"></div>
       </section>
     </main>
   </div>
@@ -624,6 +628,7 @@
       skuRows: [],
       anomalies: [],
       dismissedAnomalies: new Set(),
+      anomalyTypeFilter: "",
       filteredRows: [],
       currentTab: "detail",
       page: 1,
@@ -872,7 +877,6 @@
         if (item.EMPLACEMENT && !KNOWN_LOCATIONS.has(item.EMPLACEMENT)) anomalies.push(anomaly("Emplacement non reconnu", item, item.EMPLACEMENT));
         if ((item.TYPE === "RDU" || item.TYPE === "LDU") && !item.IMEI) anomalies.push(anomaly("RDU/LDU sans IMEI", item, "Produit RDU ou LDU sans numéro IMEI"));
         if (item.STATUT === "LIVRAISON" && !item.EXPEDITEUR) anomalies.push(anomaly("Livraison sans expéditeur", item, "STATUT = LIVRAISON mais EXPEDITEUR vide"));
-        if (item.STATUT === "MAGASIN" && !item.ENSEIGNE) anomalies.push(anomaly("Magasin sans enseigne", item, "STATUT = MAGASIN mais ENSEIGNE vide — destination non renseignée"));
         if ((item.TYPE === "RDU" || item.TYPE === "LDU") && !isFactice(item) && !item.MARKETING_NAME) anomalies.push(anomaly("RDU/LDU sans MARKETING_NAME", item, "Produit RDU ou LDU non factice sans nom commercial"));
         if (item.STATUT === "STANDBY" && item.EMPLACEMENT !== "KUBE DESIGN") anomalies.push(anomaly("Standby hors Kube Design", item, "STATUT = STANDBY mais EMPLACEMENT différent de KUBE DESIGN"));
       });
@@ -1041,7 +1045,7 @@
         anomalies: {
           title: "Anomalies",
           intro: "Contrôles automatiques : statuts incohérents, SKU manquants non factices, doublons IMEI/SN et valeurs non reconnues.",
-          tools: "stock"
+          tools: "anomalies"
         },
         help: {
           title: "Mode d'emploi",
@@ -1081,7 +1085,11 @@
       if (state.currentTab === "low") return state.skuRows.filter((r) => r.alert === "low" && r.names && r.names.size > 0 && !r.isFactice);
       if (state.currentTab === "critical") return state.skuRows.filter((r) => r.alert === "critical" && r.names && r.names.size > 0);
       if (state.currentTab === "rupture") return state.skuRows.filter((r) => r.alert === "rupture");
-      if (state.currentTab === "anomalies") return state.anomalies.filter(a => !state.dismissedAnomalies.has(a.dismissKey));
+      if (state.currentTab === "anomalies") {
+        let base = state.anomalies.filter(a => !state.dismissedAnomalies.has(a.dismissKey));
+        if (state.anomalyTypeFilter) base = base.filter(a => a.type === state.anomalyTypeFilter);
+        return base;
+      }
       if (state.currentTab === "help") return helpRows();
       return state.rows;
     }
@@ -1221,9 +1229,7 @@
           renderAll();
         });
       });
-      document.getElementById("pageInfo").textContent = `${rows.length} lignes - page ${state.page}/${totalPages}`;
-      document.getElementById("prevPage").disabled = state.page <= 1;
-      document.getElementById("nextPage").disabled = state.page >= totalPages;
+      renderPager(state.page, totalPages, rows.length);
       renderTableTools();
     }
 
@@ -1340,14 +1346,27 @@
         `;
       })() : "";
 
-      const gammeSelect = config.tools === "stock-alert" ? "" : `
+      const gammeSelect = config.tools === "stock-alert" || config.tools === "anomalies" ? "" : `
         <select id="gammeFilter">
           <option value="">Toutes gammes</option>
           ${distinctGammes.map((g) => `<option value="${escapeHtml(g)}" ${state.gammeFilter === g ? "selected" : ""}>${escapeHtml(g)}</option>`).join("")}
         </select>
       `;
 
-      const countBadge = config.tools !== "livraisons" && config.tools !== "stock" && config.tools !== "stock-alert" ? (() => {
+      const anomalyTools = config.tools === "anomalies" ? (() => {
+        const types = [...new Set(state.anomalies.map(a => a.type))].sort();
+        const count = state.filteredRows.length;
+        const badge = `<span class="livraison-badge"><span class="badge-count">${count}</span> anomalie${count !== 1 ? "s" : ""}</span>`;
+        return `
+          ${badge}
+          <select id="anomalyTypeFilter">
+            <option value="">Tous les types</option>
+            ${types.map(t => `<option value="${escapeHtml(t)}" ${state.anomalyTypeFilter === t ? "selected" : ""}>${escapeHtml(t)}</option>`).join("")}
+          </select>
+        `;
+      })() : "";
+
+      const countBadge = config.tools !== "livraisons" && config.tools !== "stock" && config.tools !== "stock-alert" && config.tools !== "anomalies" ? (() => {
         const count = state.filteredRows.length;
         const label = state.currentTab === "anomalies" ? "anomalie" : state.currentTab === "detail" ? "article" : state.currentTab === "rupture" ? "produit" : "ligne";
         const gammeTag = state.gammeFilter ? `<span class="badge-filters">— ${escapeHtml(state.gammeFilter)}</span>` : "";
@@ -1359,6 +1378,7 @@
         ${stockAlertSearch}
         ${stockSearch}
         ${livraisonTools}
+        ${anomalyTools}
         ${countBadge}
         ${gammeSelect}
         <button id="exportCsv" type="button">Exporter CSV</button>
@@ -1465,6 +1485,14 @@
           renderTable();
         });
       }
+      const anomalyTypeFilter = document.getElementById("anomalyTypeFilter");
+      if (anomalyTypeFilter) {
+        anomalyTypeFilter.addEventListener("change", () => {
+          state.anomalyTypeFilter = anomalyTypeFilter.value;
+          state.page = 1;
+          renderTable();
+        });
+      }
       const resetStockFilters = document.getElementById("resetStockFilters");
       if (resetStockFilters) {
         resetStockFilters.addEventListener("click", () => {
@@ -1491,6 +1519,32 @@
           }
         }
       }
+    }
+
+    function renderPager(curr, total, rowCount) {
+      const pager = document.getElementById("pager");
+      const label = state.currentTab === "anomalies" ? "anomalie" : state.currentTab === "livraisons" ? "livraison" : state.currentTab === "rupture" || state.currentTab === "low" || state.currentTab === "critical" ? "produit" : "ligne";
+      const info = `<span class="page-info">${rowCount} ${label}${rowCount !== 1 ? "s" : ""}${total > 1 ? ` · p. ${curr}/${total}` : ""}</span>`;
+      if (total <= 1) { pager.innerHTML = info; return; }
+      const buildItems = (curr, total) => {
+        if (total <= 7) { const a = []; for (let i = 1; i <= total; i++) a.push({ t: "p", p: i }); return a; }
+        if (curr <= 4) return [...[1,2,3,4,5].map(p => ({ t:"p", p })), { t:"e", p: total }, { t:"p", p: total }];
+        if (curr >= total - 3) return [{ t:"p", p:1 }, { t:"e", p:1 }, ...[total-4,total-3,total-2,total-1,total].map(p => ({ t:"p", p }))];
+        return [{ t:"p", p:1 }, { t:"e", p:1 }, { t:"p", p:curr-1 }, { t:"p", p:curr }, { t:"p", p:curr+1 }, { t:"e", p:total }, { t:"p", p:total }];
+      };
+      const items = buildItems(curr, total);
+      const btns = items.map(it => it.t === "e"
+        ? `<button class="page-btn page-ellipsis" data-page="${it.p}">…</button>`
+        : `<button class="page-btn${it.p === curr ? " page-active" : ""}" data-page="${it.p}">${it.p}</button>`
+      ).join("");
+      pager.innerHTML = `${info}<div class="page-btns"><button class="page-btn" data-page="${curr-1}" ${curr<=1?"disabled":""}>‹</button>${btns}<button class="page-btn" data-page="${curr+1}" ${curr>=total?"disabled":""}>›</button></div>`;
+      pager.querySelectorAll(".page-btn[data-page]:not([disabled])").forEach(btn => {
+        btn.addEventListener("click", () => {
+          state.page = parseInt(btn.dataset.page);
+          renderTable();
+          const tw = document.querySelector(".table-wrap"); if (tw) tw.scrollTop = 0;
+        });
+      });
     }
 
     function renderCharts() {
@@ -1957,8 +2011,6 @@
       if (event.target.files[0]) handleFile(event.target.files[0]);
       event.target.value = "";
     });
-    document.getElementById("prevPage").addEventListener("click", () => { state.page -= 1; renderTable(); });
-    document.getElementById("nextPage").addEventListener("click", () => { state.page += 1; renderTable(); });
     document.getElementById("drawerClose").addEventListener("click", closeDrawer);
     document.getElementById("drawerBackdrop").addEventListener("click", closeDrawer);
     document.getElementById("drawerCsv").addEventListener("click", () => exportCsv(state.drawerRows, `${state.drawerTitle}.csv`));
