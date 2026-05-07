@@ -5,6 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Gestion de stock au service produit</title>
   <link rel="icon" type="image/png" href="data:image/png;base64,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">
+  <script>
+    (function() {
+      var src = document.querySelector('link[rel="icon"]').href;
+      var s = document.createElement('link'); s.rel = 'shortcut icon'; s.type = 'image/png'; s.href = src;
+      document.head.appendChild(s);
+      var a = document.createElement('link'); a.rel = 'apple-touch-icon'; a.href = src;
+      document.head.appendChild(a);
+    })();
+  </script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <style>
@@ -93,9 +102,17 @@
       margin-top: 1px;
     }
 
-    .global-search {
-      width: 100%;
+    .btn-reset {
+      background: #e8f0fe;
+      border: 1px solid #aac4f0;
+      border-radius: 4px;
+      color: #1a56db;
+      cursor: pointer;
+      font-size: 12px;
+      padding: 4px 10px;
+      white-space: nowrap;
     }
+    .btn-reset:hover { background: #c7d8f8; }
 
     .file-meta {
       color: var(--muted);
@@ -494,7 +511,6 @@
             <div class="subtitle">Dashboard complémentaire SODA pour Kube Design</div>
           </div>
         </div>
-        <input id="globalSearch" class="global-search" type="search" placeholder="Recherche globale : SKU, IMEI, SN, nom, magasin">
         <div>
           <div class="file-meta" id="fileMeta">Données de démonstration chargées</div>
           <button id="reportingBtn" class="primary" type="button">Générer l'AD STOCK KUBE</button>
@@ -519,7 +535,7 @@
 
       <section id="charts" class="charts">
         <div class="chart-box" data-chart-page="stock">
-          <div class="chart-title">Stock par expéditeur</div>
+          <div class="chart-title">Entrées par expéditeur</div>
           <div class="chart-wrap"><canvas id="standbyChart"></canvas></div>
         </div>
 
@@ -611,17 +627,18 @@
       currentTab: "detail",
       page: 1,
       sort: { key: "__index", dir: "asc" },
-      globalSearch: "",
       techSearch: "",
       detailSearch: "",
       detailStatut: "",
       detailEmplacement: "",
       detailAlerte: "",
+      alertTypeFilter: "",
       gammeFilter: "",
       ruptureSearch: "",
       livraisonSearch: "",
       livraisonEnseigne: "",
       livraisonExpediteur: "",
+      livraisonDirection: "",
       fileName: "Données de démonstration",
       importedAt: new Date(),
       charts: {},
@@ -647,8 +664,8 @@
       detail: [["alertLabel", "Statut alerte"], ...REQUIRED_COLUMNS.filter((c) => c !== "ID").map((c) => [c, c])],
       technicians: [["technicien", "Technicien"], ["LIVRAISON", "Date"], ["week", "Semaine ISO"], ["year", "Année"], ["IMEI", "IMEI"], ["SN", "SN"], ["MARKETING_NAME", "Produit"], ["PRODUIT", "Produit court"], ["GAMME", "Gamme"], ["SKU", "SKU"], ["STATUT", "Statut"], ["EMPLACEMENT", "Emplacement"], ["ENSEIGNE", "Enseigne"], ["MAGASIN", "Magasin"], ["MOBILIER", "Mobilier"], ["techniciens", "Equipe"]],
       planning: [["technicien", "Technicien"], ["week", "Semaine ISO"], ["year", "Année"], ["MAGASIN", "Magasin"], ["ENSEIGNE", "Enseigne"], ["MOBILIER", "Mobilier"], ["SKU", "SKU"], ["MARKETING_NAME", "Produit"]],
-      low: [["alertLabel", "Statut alerte"], ...REQUIRED_COLUMNS.filter((c) => c !== "ID").map((c) => [c, c])],
-      critical: [["alertLabel", "Statut alerte"], ...REQUIRED_COLUMNS.filter((c) => c !== "ID").map((c) => [c, c])],
+      low: [["canonicalName", "Produit"], ["gamme", "Gamme"], ["qtyKube", "Stock Kube"]],
+      critical: [["canonicalName", "Produit"], ["gamme", "Gamme"], ["qtyKube", "Stock Kube"]],
       rupture: [["canonicalName", "Produit"], ["gamme", "Gamme"], ["qtyKube", "Stock Kube"], ["ruptureStandby", "Standby"], ["ruptureLivraison", "Livraison"], ["ruptureMagasin", "Magasin"], ["ruptureVol", "Vol"], ["ruptureProjet", "Projet"]],
       anomalies: [["type", "Type"], ["ID", "ID"], ["SKU", "SKU"], ["STATUT", "Statut"], ["EMPLACEMENT", "Emplacement"], ["detail", "Détail"]],
       livraisons: [
@@ -838,8 +855,8 @@
 
     function alertForQty(qtyKube, qtyByStatus) {
       if (qtyKube > 15) return { id: "ok", label: "" };
-      if (qtyKube >= 6) return { id: "low", label: "Stock de 5 à 15" };
-      if (qtyKube >= 1) return { id: "critical", label: "Stock de 0 à 5" };
+      if (qtyKube >= 5) return { id: "low", label: "Stock de 5 à 15" };
+      if (qtyKube > 0) return { id: "critical", label: "Stock de 0 à 5" };
       const hasElsewhere = qtyByStatus && Object.values(qtyByStatus).some(v => v > 0);
       return hasElsewhere ? { id: "rupture", label: "Rupture" } : { id: "", label: "" };
     }
@@ -883,12 +900,19 @@
         standby: rows.filter(isStandbyStock).length,
         available: rows.filter(isAvailable).length,
         ok: skuRows.filter((r) => r.alert === "ok").length,
-        low: skuRows.filter((r) => r.alert === "low").length,
-        critical: skuRows.filter((r) => r.alert === "critical").length,
-          rupture: skuRows.filter((r) => r.alert === "rupture").length,
+        low: skuRows.filter(r => r.alert === "low" && r.names && r.names.size > 0 && !r.isFactice).length,
+        critical: (() => {
+          const m = new Map();
+          rows.forEach(r => {
+            if ((r.TYPE !== "RDU" && r.TYPE !== "LDU") || r.STATUT !== "STOCK KUBE" || r.EMPLACEMENT !== "KUBE DESIGN" || !r.MARKETING_NAME) return;
+            m.set(r.MARKETING_NAME, (m.get(r.MARKETING_NAME) || 0) + 1);
+          });
+          return [...m.values()].filter(v => v > 0 && v < 5).length + skuRows.filter(r => r.alert === "rupture").length;
+        })(),
+        rupture: skuRows.filter((r) => r.alert === "rupture").length,
         project: rows.filter((r) => r.STATUT === "PROJET" && r.EMPLACEMENT === "KUBE DESIGN").length,
         hs: rows.filter((r) => r.STATUT === "HS").length,
-        incoming: rows.filter((r) => r.STATUT === "LIVRAISON").length,
+        incoming: rows.filter((r) => r.STATUT === "LIVRAISON" && r.EXPEDITEUR !== "KUBE DESIGN").length,
         installedMonth: rows.filter((r) => r.STATUT === "MAGASIN" && isCurrentMonth(r.__livraisonDate)).length,
         anomalies: state.anomalies.length
       };
@@ -989,18 +1013,18 @@
         },
         livraisons: {
           title: "Livraisons",
-          intro: "Articles avec STATUT = LIVRAISON. Recherche par IMEI, SN, produit, enseigne.",
+          intro: "Entrées : expéditeurs prestataires → Kube Design. Sorties : expéditeur = KUBE DESIGN → magasins. Filtres : texte libre, direction (Entrée/Sortie), enseigne, expéditeur. Le KPI « Livraisons » n'affiche que les entrées (expéditeur ≠ KUBE DESIGN).",
           tools: "livraisons"
         },
         low: {
           title: "Stock de 5 à 15",
           intro: "Articles RDU/LDU en Stock Kube dont le stock du MARKETING_NAME est entre 5 et 15 unités.",
-          tools: "stock"
+          tools: "stock-alert"
         },
         critical: {
           title: "Stock de 0 à 5",
           intro: "Articles RDU/LDU en Stock Kube dont le stock du MARKETING_NAME est entre 0 et 5 unités.",
-          tools: "stock"
+          tools: "stock-alert"
         },
         rupture: {
           title: "Ruptures stock kube",
@@ -1038,7 +1062,7 @@
       if (tab === "technicians") return { key: "LIVRAISON", dir: "desc" };
       if (tab === "planning") return { key: "week", dir: "asc" };
       if (tab === "help") return { key: "theme", dir: "asc" };
-      if (tab === "rupture") return { key: "canonicalName", dir: "asc" };
+      if (tab === "rupture" || tab === "low" || tab === "critical") return { key: "canonicalName", dir: "asc" };
       return { key: "__index", dir: "asc" };
     }
 
@@ -1047,8 +1071,8 @@
       if (state.currentTab === "technicians") return technicianRows();
       if (state.currentTab === "livraisons") return livraisonsRows();
       if (state.currentTab === "planning") return planningRows();
-      if (state.currentTab === "low") return state.rows.filter((r) => r.alert === "low");
-      if (state.currentTab === "critical") return state.rows.filter((r) => r.alert === "critical");
+      if (state.currentTab === "low") return state.skuRows.filter((r) => r.alert === "low" && r.names && r.names.size > 0 && !r.isFactice);
+      if (state.currentTab === "critical") return state.skuRows.filter((r) => r.alert === "critical" && r.names && r.names.size > 0);
       if (state.currentTab === "rupture") return state.skuRows.filter((r) => r.alert === "rupture");
       if (state.currentTab === "anomalies") return state.anomalies;
       if (state.currentTab === "help") return helpRows();
@@ -1075,22 +1099,24 @@
     function helpRows() {
       return [
         { theme: "Charger les données", description: "Au démarrage, l’outil est vide. Glissez votre fichier SODA (Excel ou CSV) dans la zone d’import ou cliquez pour le sélectionner. Les données se chargent immédiatement. Chaque nouvel import remplace les données courantes." },
-        { theme: "Stock physique", description: "Nombre total d’articles présents physiquement chez Kube Design (tous statuts confondus : Stock Kube, Standby, Projet, HS, CDM). Les produits factices et les accessoires sans numéro de série sont exclus." },
-        { theme: "Stock Kube", description: "Produits disponibles immédiatement chez Kube Design, prêts à être expédiés." },
-        { theme: "Stock Standby", description: "Produits présents chez Kube Design mais mis en attente, non disponibles à l’expédition." },
-        { theme: "Livraisons", description: "Produits actuellement en cours de livraison vers un magasin. Cliquez sur l’indicateur ou l’onglet Livraisons pour voir le détail et filtrer par enseigne ou expéditeur." },
-        { theme: "Réservé projet", description: "Produits mis de côté pour un projet spécifique, non disponibles pour d’autres commandes." },
-        { theme: "HS", description: "Produits hors service (Grade D), non utilisables pour une mise en rayon." },
-        { theme: "Niveaux d’alerte", description: "Les alertes concernent uniquement les RDU et LDU disponibles en Stock Kube. « Stock de 0 à 5 » : il reste entre 1 et 5 unités, attention. « Stock de 5 à 15 » : stock bas, à surveiller. Au-dessus de 15 : aucun badge affiché, le stock est suffisant." },
-        { theme: "Rupture", description: "Un produit est en rupture quand il n’y a plus aucune unité disponible en Stock Kube, mais qu’il en existe encore ailleurs (en standby, en livraison, en magasin…). L’onglet ❌ Ruptures montre où se trouvent ces unités." },
-        { theme: "Produits factices", description: "Un produit est considéré comme factice (présentoir, maquette) s’il est marqué FACTICE ou s’il n’a pas de numéro IMEI ni de numéro de série. Exception : les accessoires (ACC) sans numéro sont de vrais produits." },
-        { theme: "Onglet SODA", description: "Vue complète de toutes les lignes du fichier importé. Utilisez la barre de recherche pour trouver un produit, un IMEI, un magasin, etc. Les filtres Statut, Emplacement, Alerte et Gamme sont disponibles sur tous les onglets." },
-        { theme: "Onglet Ruptures", description: "Liste tous les produits (RDU/LDU) absents du Stock Kube mais présents ailleurs. Pour chaque produit, vous voyez combien d’unités sont en Standby, Livraison, Magasin, Vol ou Projet." },
-        { theme: "Onglet Anomalies", description: "L’outil détecte automatiquement les erreurs dans les données : statut incohérent avec l’emplacement, référence SKU manquante, numéro IMEI ou SN en double. Vérifiez cet onglet après chaque import." },
-        { theme: "Graphiques", description: "Les graphiques sont cliquables. Un clic sur une barre ou une portion de camembert ouvre le détail des produits correspondants dans un panneau latéral." },
-        { theme: "Indicateurs cliquables", description: "Tous les chiffres en haut de page sont cliquables. Stock physique, Stock Kube, Standby, Projet et HS ouvrent un panneau détail. Livraisons et Ruptures ouvrent leur onglet. Anomalies ouvre l’onglet Anomalies." },
-        { theme: "Générer l’AD STOCK KUBE", description: "Exporte un fichier Excel avec deux feuilles : le TCD (tableau croisé par produit et statut, RDU/LDU uniquement) et la BDD (toutes les lignes brutes). Utilisez le bouton en haut à droite de la page." },
-        { theme: "Recherche", description: "La barre de recherche en haut cherche dans toutes les données en même temps. Vous pouvez taper un nom de produit, un IMEI, un numéro de série, un magasin, une enseigne ou n’importe quelle autre information." }
+        { theme: "Indicateur — Stock physique", description: "Nombre total d’articles présents physiquement chez Kube Design (tous statuts : Stock Kube, Standby, Projet, HS, CDM). Les produits factices et les accessoires sans numéro de série sont exclus." },
+        { theme: "Indicateur — Stock Kube", description: "Produits disponibles immédiatement chez Kube Design, prêts à être expédiés (STATUT = STOCK KUBE, EMPLACEMENT = KUBE DESIGN)." },
+        { theme: "Indicateur — Stock Standby", description: "Produits présents chez Kube Design mais mis en attente, non disponibles à l’expédition." },
+        { theme: "Indicateur — Livraisons", description: "Nombre de lignes STATUT = LIVRAISON dont l’expéditeur n’est PAS KUBE DESIGN (entrées prestataires). Les sorties expédiées par Kube Design vers les magasins ne sont pas comptabilisées dans cet indicateur." },
+        { theme: "Indicateur — Réservé projet", description: "Produits mis de côté pour un projet spécifique, non disponibles pour d’autres commandes." },
+        { theme: "Indicateur — HS", description: "Produits hors service (Grade D), non utilisables pour une mise en rayon." },
+        { theme: "Indicateur — Stock 5 à 15", description: "Nombre de MARKETING_NAME (RDU/LDU uniquement) dont le cumul en STATUT = STOCK KUBE, EMPLACEMENT = KUBE DESIGN est compris entre 5 et 15 unités. Alerte jaune à surveiller." },
+        { theme: "Indicateur — Stock 0 à 5", description: "Nombre de MARKETING_NAME (RDU/LDU uniquement) dont le cumul en STATUT = STOCK KUBE, EMPLACEMENT = KUBE DESIGN est entre 1 et 4 unités, plus les ruptures (0 unité en kube). Alerte rouge critique." },
+        { theme: "Onglet Stock 5 à 15", description: "Tableau par MARKETING_NAME avec le stock disponible (qtyKube). Filtres : recherche texte, RDU ou LDU uniquement, gamme. Bouton Réinitialiser pour effacer tous les filtres." },
+        { theme: "Onglet Stock 0 à 5", description: "Même logique que Stock 5 à 15 pour les produits avec 1 à 4 unités ou en rupture totale. Filtres identiques : texte, RDU/LDU, gamme, réinitialiser." },
+        { theme: "Onglet Ruptures", description: "Produits (RDU/LDU) avec 0 unité en Stock Kube mais présents ailleurs (Standby, Livraison, Magasin, Vol, Projet). Le tableau montre la répartition par statut." },
+        { theme: "Onglet Livraisons", description: "Toutes les lignes STATUT = LIVRAISON. Direction Entrée : expéditeurs prestataires vers Kube Design. Direction Sortie : KUBE DESIGN expédie vers les magasins. Filtres : texte libre, direction (Entrée/Sortie), enseigne, expéditeur, bouton Réinitialiser." },
+        { theme: "Onglet SODA", description: "Vue complète de toutes les lignes du fichier importé. Recherche texte libre, filtres Statut, Emplacement, Alerte, Gamme, bouton Réinitialiser." },
+        { theme: "Onglet Anomalies", description: "L’outil détecte automatiquement : statut incohérent avec l’emplacement, référence SKU manquante, IMEI/SN en double, valeurs non reconnues. À vérifier après chaque import." },
+        { theme: "Produits factices", description: "Marqués FACTICE ou sans IMEI ni SN. Exception : les accessoires (ACC) sans numéro sont de vrais produits." },
+        { theme: "Graphiques", description: "Le graphique « Entrées par expéditeur » affiche uniquement les prestataires (hors KUBE DESIGN). Un clic sur une portion ouvre le détail des produits dans un panneau latéral." },
+        { theme: "Indicateurs cliquables", description: "Tous les chiffres en haut de page sont cliquables : Stock physique, Stock Kube, Standby, Projet et HS ouvrent un panneau détail ; Livraisons, Ruptures et Anomalies ouvrent leur onglet ; Stock 5 à 15 et Stock 0 à 5 ouvrent leur onglet d’alerte." },
+        { theme: "Export AD STOCK KUBE", description: "Génère un fichier Excel (deux feuilles) : TCD = tableau croisé MARKETING_NAME × STATUT (RDU/LDU uniquement) ; BDD = toutes les lignes brutes avec en-tête bleu. Bouton en haut à droite." }
       ];
     }
 
@@ -1118,7 +1144,6 @@
 
     function applyFilters(rows) {
       const gamme = state.gammeFilter;
-      const q = state.globalSearch.toUpperCase();
       return rows.filter((r) => {
         if (gamme && r.GAMME !== gamme && r.gamme !== gamme) return false;
         if (state.detailSearch) {
@@ -1140,10 +1165,17 @@
           }
           if (state.livraisonEnseigne && r.ENSEIGNE !== state.livraisonEnseigne) return false;
           if (state.livraisonExpediteur && r.EXPEDITEUR !== state.livraisonExpediteur) return false;
+          if (state.livraisonDirection) {
+            const isKube = r.EXPEDITEUR === "KUBE DESIGN";
+            if (state.livraisonDirection === "Entrée" && isKube) return false;
+            if (state.livraisonDirection === "Sortie" && !isKube) return false;
+          }
         }
-        if (!q) return true;
-        if (r.__search) return r.__search.includes(q);
-        return Object.values(r).filter((v) => typeof v !== "object").join(" ").toUpperCase().includes(q);
+        if ((state.currentTab === "low" || state.currentTab === "critical") && state.alertTypeFilter) {
+          const t = r.type || "";
+          if (!t.includes(state.alertTypeFilter)) return false;
+        }
+        return true;
       });
     }
 
@@ -1217,6 +1249,27 @@
       const technicianSearch = config.tools === "technicians" ? `
         <input id="techSearch" type="search" placeholder="Rechercher IMEI, SN, technicien, produit" value="${escapeHtml(state.techSearch)}">
       ` : "";
+      const stockAlertSearch = config.tools === "stock-alert" ? (() => {
+        const count = state.filteredRows.length;
+        const gammeTag = state.gammeFilter ? `<span class="badge-filters">— ${escapeHtml(state.gammeFilter)}</span>` : "";
+        const tabLabel = state.currentTab === "low" ? "produit" : "produit";
+        const badge = `<span class="livraison-badge"><span class="badge-count">${count}</span> ${tabLabel}${count !== 1 ? "s" : ""} ${gammeTag}</span>`;
+        return `
+          <input id="detailSearch" type="search" placeholder="Rechercher un produit…" value="${escapeHtml(state.detailSearch)}" style="min-width:220px">
+          ${badge}
+          <select id="alertTypeFilter">
+            <option value="">RDU + LDU</option>
+            <option value="RDU" ${state.alertTypeFilter === "RDU" ? "selected" : ""}>RDU uniquement</option>
+            <option value="LDU" ${state.alertTypeFilter === "LDU" ? "selected" : ""}>LDU uniquement</option>
+          </select>
+          <select id="gammeFilter">
+            <option value="">Toutes gammes</option>
+            ${distinctGammes.map((g) => `<option value="${escapeHtml(g)}" ${state.gammeFilter === g ? "selected" : ""}>${escapeHtml(g)}</option>`).join("")}
+          </select>
+          <button id="resetStockFilters" type="button" class="btn-reset">✕ Réinitialiser</button>
+        `;
+      })() : "";
+
       const stockSearch = config.tools === "stock" ? (() => {
         const count = state.filteredRows.length;
         const gammeTag = state.gammeFilter ? `<span class="badge-filters">— ${escapeHtml(state.gammeFilter)}</span>` : "";
@@ -1240,17 +1293,23 @@
             <option value="critical" ${state.detailAlerte === "critical" ? "selected" : ""}>Stock de 0 à 5</option>
             ${(!["detail", "anomalies", "low", "critical"].includes(state.currentTab)) ? `<option value="rupture" ${state.detailAlerte === "rupture" ? "selected" : ""}>Rupture</option>` : ""}
           </select>
+          <button id="resetStockFilters" type="button" class="btn-reset">✕ Réinitialiser</button>
         `;
       })() : "";
 
 
       const livraisonTools = config.tools === "livraisons" ? (() => {
         const count = state.filteredRows.length;
-        const parts = [state.livraisonEnseigne, state.livraisonExpediteur, state.gammeFilter].filter(Boolean);
+        const parts = [state.livraisonDirection, state.livraisonEnseigne, state.livraisonExpediteur, state.gammeFilter].filter(Boolean);
         const filterLabel = parts.length ? `<span class="badge-filters">— ${escapeHtml(parts.join(" · "))}</span>` : "";
         return `
           <span class="livraison-badge">📦 <span class="badge-count">${count}</span> livraison${count !== 1 ? "s" : ""} ${filterLabel}</span>
           <input id="livraisonSearch" type="search" placeholder="IMEI, SN, produit, magasin…" value="${escapeHtml(state.livraisonSearch)}" style="min-width:220px">
+          <select id="livraisonDirection">
+            <option value="">Entrées + Sorties</option>
+            <option value="Entrée" ${state.livraisonDirection === "Entrée" ? "selected" : ""}>Entrées seulement</option>
+            <option value="Sortie" ${state.livraisonDirection === "Sortie" ? "selected" : ""}>Sorties seulement</option>
+          </select>
           <select id="livraisonEnseigne">
             <option value="">Toutes enseignes</option>
             ${distinctEnseignes.map((e) => `<option value="${escapeHtml(e)}" ${state.livraisonEnseigne === e ? "selected" : ""}>${escapeHtml(e)}</option>`).join("")}
@@ -1259,17 +1318,18 @@
             <option value="">Tous expéditeurs</option>
             ${distinctExpediteurs.map((e) => `<option value="${escapeHtml(e)}" ${state.livraisonExpediteur === e ? "selected" : ""}>${escapeHtml(e)}</option>`).join("")}
           </select>
+          <button id="resetLivraisonFilters" type="button" class="btn-reset">✕ Réinitialiser</button>
         `;
       })() : "";
 
-      const gammeSelect = `
+      const gammeSelect = config.tools === "stock-alert" ? "" : `
         <select id="gammeFilter">
           <option value="">Toutes gammes</option>
           ${distinctGammes.map((g) => `<option value="${escapeHtml(g)}" ${state.gammeFilter === g ? "selected" : ""}>${escapeHtml(g)}</option>`).join("")}
         </select>
       `;
 
-      const countBadge = config.tools !== "livraisons" && config.tools !== "stock" ? (() => {
+      const countBadge = config.tools !== "livraisons" && config.tools !== "stock" && config.tools !== "stock-alert" ? (() => {
         const count = state.filteredRows.length;
         const label = state.currentTab === "anomalies" ? "anomalie" : state.currentTab === "detail" ? "article" : state.currentTab === "rupture" ? "produit" : "ligne";
         const gammeTag = state.gammeFilter ? `<span class="badge-filters">— ${escapeHtml(state.gammeFilter)}</span>` : "";
@@ -1278,6 +1338,7 @@
 
       document.getElementById("tableTools").innerHTML = `
         ${technicianSearch}
+        ${stockAlertSearch}
         ${stockSearch}
         ${livraisonTools}
         ${countBadge}
@@ -1358,6 +1419,47 @@
           renderTable();
         });
       }
+      const livraisonDirection = document.getElementById("livraisonDirection");
+      if (livraisonDirection) {
+        livraisonDirection.addEventListener("change", () => {
+          state.livraisonDirection = livraisonDirection.value;
+          state.page = 1;
+          renderTable();
+        });
+      }
+      const resetLivraisonFilters = document.getElementById("resetLivraisonFilters");
+      if (resetLivraisonFilters) {
+        resetLivraisonFilters.addEventListener("click", () => {
+          state.livraisonSearch = "";
+          state.livraisonEnseigne = "";
+          state.livraisonExpediteur = "";
+          state.livraisonDirection = "";
+          state.gammeFilter = "";
+          state.page = 1;
+          renderTable();
+        });
+      }
+      const alertTypeFilter = document.getElementById("alertTypeFilter");
+      if (alertTypeFilter) {
+        alertTypeFilter.addEventListener("change", () => {
+          state.alertTypeFilter = alertTypeFilter.value;
+          state.page = 1;
+          renderTable();
+        });
+      }
+      const resetStockFilters = document.getElementById("resetStockFilters");
+      if (resetStockFilters) {
+        resetStockFilters.addEventListener("click", () => {
+          state.detailSearch = "";
+          state.detailStatut = "";
+          state.detailEmplacement = "";
+          state.detailAlerte = "";
+          state.alertTypeFilter = "";
+          state.gammeFilter = "";
+          state.page = 1;
+          renderTable();
+        });
+      }
       document.getElementById("exportCsv").addEventListener("click", () => exportCsv(state.filteredRows, `${state.currentTab}.csv`));
       document.getElementById("exportXlsx").addEventListener("click", () => exportXlsx(state.filteredRows, `${state.currentTab}.xlsx`));
 
@@ -1374,9 +1476,10 @@
     }
 
     function renderCharts() {
-      const expediteurRows = state.rows.filter((r) => isUsefulChartValue(r.EXPEDITEUR));
+      const incomingRows = state.rows.filter((r) => isUsefulChartValue(r.EXPEDITEUR) && r.EXPEDITEUR !== "KUBE DESIGN");
+      const outgoingRows = state.rows.filter((r) => r.EXPEDITEUR === "KUBE DESIGN" && isUsefulChartValue(r.ENSEIGNE));
       const availableRows = state.rows.filter(isAvailable);
-      makeChart("standbyChart", "pie", countBy(expediteurRows, "EXPEDITEUR"), expediteurRows, "EXPEDITEUR", "Expéditeur");
+      makeChart("standbyChart", "pie", countBy(incomingRows, "EXPEDITEUR"), incomingRows, "EXPEDITEUR", "Expéditeur");
 
       makeChart("brandChart", "bar", countBy(state.rows.filter((r) => isUsefulChartValue(r.ENSEIGNE)), "ENSEIGNE"), state.rows.filter((r) => isUsefulChartValue(r.ENSEIGNE)), "ENSEIGNE", "Enseigne");
       makeChart("rangeChart", "doughnut", countBy(availableRows, "GAMME"), availableRows, "GAMME", "Gamme");
@@ -1517,7 +1620,7 @@
         { v: "STOCK KUBE = Stock dispo à date", s: S_B },
         null, null,
         { v: "Entre 0 < 5", s: S_CB },
-        { v: "Entre 5 < 10", s: S_LB }
+        { v: "Entre 5 à 15", s: S_LB }
       ];
 
       const pad = (v) => String(v).padStart(2, "0");
@@ -1577,7 +1680,7 @@
           const cnt = pivot[name][s];
           const sn = cellSheetMap[`${name}||${s}`];
           let st = S_N;
-          if (s === "STOCK KUBE") st = (!cnt || cnt <= 4) ? S_C : cnt <= 9 ? S_L : S_N;
+          if (s === "STOCK KUBE") st = (!cnt || cnt <= 4) ? S_C : cnt <= 15 ? S_L : S_N;
           if (sn && cnt) {
             row.push(mk(cnt, st, false, `HYPERLINK("#'${sn}'!A1",${cnt})`));
           } else {
@@ -1834,11 +1937,6 @@
     document.getElementById("fileInput").addEventListener("change", (event) => {
       if (event.target.files[0]) handleFile(event.target.files[0]);
       event.target.value = "";
-    });
-    document.getElementById("globalSearch").addEventListener("input", (event) => {
-      state.globalSearch = event.target.value.trim();
-      state.page = 1;
-      renderAll();
     });
     document.getElementById("prevPage").addEventListener("click", () => { state.page -= 1; renderTable(); });
     document.getElementById("nextPage").addEventListener("click", () => { state.page += 1; renderTable(); });
