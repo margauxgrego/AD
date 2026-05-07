@@ -623,6 +623,7 @@
       rows: [],
       skuRows: [],
       anomalies: [],
+      dismissedAnomalies: new Set(),
       filteredRows: [],
       currentTab: "detail",
       page: 1,
@@ -667,7 +668,7 @@
       low: [["canonicalName", "Produit"], ["gamme", "Gamme"], ["qtyKube", "Stock Kube"]],
       critical: [["canonicalName", "Produit"], ["gamme", "Gamme"], ["qtyKube", "Stock Kube"]],
       rupture: [["canonicalName", "Produit"], ["gamme", "Gamme"], ["qtyKube", "Stock Kube"], ["ruptureStandby", "Standby"], ["ruptureLivraison", "Livraison"], ["ruptureMagasin", "Magasin"], ["ruptureVol", "Vol"], ["ruptureProjet", "Projet"]],
-      anomalies: [["type", "Type"], ["ID", "ID"], ["SKU", "SKU"], ["STATUT", "Statut"], ["EMPLACEMENT", "Emplacement"], ["detail", "Détail"]],
+      anomalies: [["dismiss", "✓"], ["type", "Type"], ["ID", "ID"], ["SKU", "SKU"], ["STATUT", "Statut"], ["EMPLACEMENT", "Emplacement"], ["detail", "Détail"]],
       livraisons: [
         ["MARKETING_NAME", "Produit"], ["SKU", "SKU"], ["IMEI", "IMEI"], ["SN", "SN"],
         ["ENSEIGNE", "Enseigne"], ["MAGASIN", "Magasin"], ["EXPEDITEUR", "Expéditeur"],
@@ -869,6 +870,11 @@
         if (!item.SKU && !isFactice(item)) anomalies.push(anomaly("SKU vide", item, "La référence constructeur est vide ou nulle"));
         if (item.STATUT && !KNOWN_STATUSES.has(item.STATUT)) anomalies.push(anomaly("Statut non reconnu", item, item.STATUT));
         if (item.EMPLACEMENT && !KNOWN_LOCATIONS.has(item.EMPLACEMENT)) anomalies.push(anomaly("Emplacement non reconnu", item, item.EMPLACEMENT));
+        if ((item.TYPE === "RDU" || item.TYPE === "LDU") && !item.IMEI) anomalies.push(anomaly("RDU/LDU sans IMEI", item, "Produit RDU ou LDU sans numéro IMEI"));
+        if (item.STATUT === "LIVRAISON" && !item.EXPEDITEUR) anomalies.push(anomaly("Livraison sans expéditeur", item, "STATUT = LIVRAISON mais EXPEDITEUR vide"));
+        if (item.STATUT === "MAGASIN" && !item.ENSEIGNE) anomalies.push(anomaly("Magasin sans enseigne", item, "STATUT = MAGASIN mais ENSEIGNE vide — destination non renseignée"));
+        if ((item.TYPE === "RDU" || item.TYPE === "LDU") && !isFactice(item) && !item.MARKETING_NAME) anomalies.push(anomaly("RDU/LDU sans MARKETING_NAME", item, "Produit RDU ou LDU non factice sans nom commercial"));
+        if (item.STATUT === "STANDBY" && item.EMPLACEMENT !== "KUBE DESIGN") anomalies.push(anomaly("Standby hors Kube Design", item, "STATUT = STANDBY mais EMPLACEMENT différent de KUBE DESIGN"));
       });
       ["IMEI", "SN"].forEach((column) => {
         const seen = new Map();
@@ -888,7 +894,8 @@
     }
 
     function anomaly(type, item, detail) {
-      return { type, detail, ID: item.ID, SKU: item.SKU, STATUT: item.STATUT, EMPLACEMENT: item.EMPLACEMENT, __row: item };
+      const dismissKey = `${type}|${item.ID || ""}|${detail || ""}`;
+      return { type, detail, ID: item.ID, SKU: item.SKU, STATUT: item.STATUT, EMPLACEMENT: item.EMPLACEMENT, __row: item, dismissKey };
     }
 
     function computeMetrics() {
@@ -914,7 +921,7 @@
         hs: rows.filter((r) => r.STATUT === "HS").length,
         incoming: rows.filter((r) => r.STATUT === "LIVRAISON" && r.EXPEDITEUR !== "KUBE DESIGN").length,
         installedMonth: rows.filter((r) => r.STATUT === "MAGASIN" && isCurrentMonth(r.__livraisonDate)).length,
-        anomalies: state.anomalies.length
+        anomalies: state.anomalies.filter(a => !state.dismissedAnomalies.has(a.dismissKey)).length
       };
     }
 
@@ -1074,7 +1081,7 @@
       if (state.currentTab === "low") return state.skuRows.filter((r) => r.alert === "low" && r.names && r.names.size > 0 && !r.isFactice);
       if (state.currentTab === "critical") return state.skuRows.filter((r) => r.alert === "critical" && r.names && r.names.size > 0);
       if (state.currentTab === "rupture") return state.skuRows.filter((r) => r.alert === "rupture");
-      if (state.currentTab === "anomalies") return state.anomalies;
+      if (state.currentTab === "anomalies") return state.anomalies.filter(a => !state.dismissedAnomalies.has(a.dismissKey));
       if (state.currentTab === "help") return helpRows();
       return state.rows;
     }
@@ -1207,6 +1214,13 @@
           renderTable();
         });
       });
+      document.querySelectorAll(".anomaly-dismiss").forEach((cb) => {
+        cb.addEventListener("change", () => {
+          if (cb.checked) state.dismissedAnomalies.add(cb.dataset.key);
+          else state.dismissedAnomalies.delete(cb.dataset.key);
+          renderAll();
+        });
+      });
       document.getElementById("pageInfo").textContent = `${rows.length} lignes - page ${state.page}/${totalPages}`;
       document.getElementById("prevPage").disabled = state.page <= 1;
       document.getElementById("nextPage").disabled = state.page >= totalPages;
@@ -1222,6 +1236,10 @@
 
     function cellHtml(rowData, key) {
       const value = rowData[key];
+      if (key === "dismiss") {
+        const checked = state.dismissedAnomalies.has(rowData.dismissKey) ? "checked" : "";
+        return `<input type="checkbox" class="anomaly-dismiss" data-key="${escapeHtml(rowData.dismissKey)}" ${checked}>`;
+      }
       if (key === "alertLabel") {
         const cls = rowData.alert === "ok" ? "ok" : rowData.alert === "low" ? "low" : rowData.alert === "critical" ? "critical" : rowData.alert === "rupture" ? "rupture" : "zero";
         return `<span class="pill ${cls}">${escapeHtml(value || "")}</span>`;
@@ -1558,6 +1576,7 @@
       state.skuRows = buildSkuRows(state.rows);
       enrichRowsWithAlerts(state.rows, state.skuRows);
       state.anomalies = detectAnomalies(state.rows);
+      state.dismissedAnomalies = new Set();
       state.fileName = fileName;
       state.importedAt = importedAt;
       state.currentTab = options.keepTab ? state.currentTab : "detail";
