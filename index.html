@@ -507,6 +507,32 @@
       .panel-head, .import-band { grid-template-columns: 1fr; }
       .tools { justify-content: flex-start; }
     }
+
+    .hist-backdrop {
+      position: fixed; inset: 0;
+      background: rgba(11,22,35,0.32);
+      display: none; z-index: 200;
+      align-items: center; justify-content: center;
+    }
+    .hist-backdrop.open { display: flex; }
+    .hist-modal {
+      width: min(680px,94vw); max-height: 80vh;
+      background: var(--panel); border-radius: 10px;
+      box-shadow: var(--shadow); display: flex; flex-direction: column;
+    }
+    .hist-head {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 14px 16px; border-bottom: 1px solid var(--line);
+    }
+    .hist-body { overflow-y: auto; flex: 1; padding: 12px; }
+    .hist-entry {
+      display: grid; grid-template-columns: 1fr auto auto;
+      gap: 8px; align-items: center;
+      padding: 10px 12px; border: 1px solid var(--line);
+      border-radius: 6px; margin-bottom: 8px;
+    }
+    .hist-fname { font-weight: 600; font-size: 13px; }
+    .hist-meta { color: var(--muted); font-size: 12px; }
   </style>
 </head>
 <body>
@@ -524,6 +550,7 @@
         <div>
           <div class="file-meta" id="fileMeta">Données de démonstration chargées</div>
           <button id="reportingBtn" class="primary" type="button">Générer l'AD STOCK KUBE</button>
+          <button id="histBtn" type="button">📋 Historique</button>
           <button id="newImportBtn" class="primary" type="button">Nouvel import SODA</button>
         </div>
       </div>
@@ -569,6 +596,18 @@
         <div class="pager" id="pager"></div>
       </section>
     </main>
+  </div>
+
+  <div id="histBackdrop" class="hist-backdrop">
+    <div class="hist-modal">
+      <div class="hist-head">
+        <div class="panel-title">Historique des imports SODA</div>
+        <button id="histClose" class="icon" type="button" title="Fermer">✕</button>
+      </div>
+      <div class="hist-body" id="histBody">
+        <div class="empty">Aucun import enregistré</div>
+      </div>
+    </div>
   </div>
 
   <div id="drawerBackdrop" class="drawer-backdrop"></div>
@@ -1548,10 +1587,9 @@
     }
 
     function renderCharts() {
-      const incomingRows = state.rows.filter((r) => isUsefulChartValue(r.EXPEDITEUR) && r.EXPEDITEUR !== "KUBE DESIGN");
-      const outgoingRows = state.rows.filter((r) => r.EXPEDITEUR === "KUBE DESIGN" && isUsefulChartValue(r.ENSEIGNE));
+      const expediteurRows = state.rows.filter((r) => isUsefulChartValue(r.EXPEDITEUR));
       const availableRows = state.rows.filter(isAvailable);
-      makeChart("standbyChart", "pie", countBy(incomingRows, "EXPEDITEUR"), incomingRows, "EXPEDITEUR", "Expéditeur");
+      makeChart("standbyChart", "pie", countBy(expediteurRows, "EXPEDITEUR"), expediteurRows, "EXPEDITEUR", "Expéditeur");
 
       makeChart("brandChart", "bar", countBy(state.rows.filter((r) => isUsefulChartValue(r.ENSEIGNE)), "ENSEIGNE"), state.rows.filter((r) => isUsefulChartValue(r.ENSEIGNE)), "ENSEIGNE", "Enseigne");
       makeChart("rangeChart", "doughnut", countBy(availableRows, "GAMME"), availableRows, "GAMME", "Gamme");
@@ -1663,16 +1701,163 @@
       document.getElementById("drawerTable").innerHTML = `<tr><td colspan="20" style="text-align:center;padding:2.5rem"><span style="display:inline-block;background:#b8d8f0;color:#1a3f5c;border:1.5px solid #5a9ec9;border-radius:8px;padding:.6rem 1.6rem;font-weight:600;font-size:.95rem"><span class="ld">En chargement</span><span class="ld">.</span><span class="ld">.</span><span class="ld">.</span></span></td></tr>`;
     }
 
+    // ===== HISTORIQUE D'IMPORTS (IndexedDB) =====
+    let _db = null;
+
+    function openDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open("soda_imports_db", 1);
+        req.onupgradeneeded = (e) => {
+          const d = e.target.result;
+          if (!d.objectStoreNames.contains("imports_history"))
+            d.createObjectStore("imports_history", { keyPath: "id" });
+          if (!d.objectStoreNames.contains("current_dataset"))
+            d.createObjectStore("current_dataset", { keyPath: "key" });
+        };
+        req.onsuccess = (e) => { _db = e.target.result; resolve(_db); };
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    function idbGet(store, key) {
+      return new Promise((res, rej) => {
+        const r = _db.transaction(store, "readonly").objectStore(store).get(key);
+        r.onsuccess = () => res(r.result);
+        r.onerror = () => rej(r.error);
+      });
+    }
+    function idbPut(store, value) {
+      return new Promise((res, rej) => {
+        const r = _db.transaction(store, "readwrite").objectStore(store).put(value);
+        r.onsuccess = () => res(r.result);
+        r.onerror = () => rej(r.error);
+      });
+    }
+    function idbDelete(store, key) {
+      return new Promise((res, rej) => {
+        const r = _db.transaction(store, "readwrite").objectStore(store).delete(key);
+        r.onsuccess = () => res();
+        r.onerror = () => rej(r.error);
+      });
+    }
+    function idbGetAll(store) {
+      return new Promise((res, rej) => {
+        const r = _db.transaction(store, "readonly").objectStore(store).getAll();
+        r.onsuccess = () => res(r.result);
+        r.onerror = () => rej(r.error);
+      });
+    }
+
+    async function saveImport(dataset, fileName) {
+      if (!_db) return;
+      const now = new Date();
+      const pad = v => String(v).padStart(2, "0");
+      const id = crypto.randomUUID();
+      const entry = {
+        id,
+        date: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
+        heure: `${pad(now.getHours())}:${pad(now.getMinutes())}`,
+        importedAt: now.toISOString(),
+        fileName,
+        dataset
+      };
+      await idbPut("imports_history", entry);
+      await idbPut("current_dataset", { key: "current", importId: id });
+    }
+
+    async function loadLatestImport() {
+      if (!_db) return false;
+      const cur = await idbGet("current_dataset", "current");
+      if (!cur) return false;
+      const entry = await idbGet("imports_history", cur.importId);
+      if (!entry) return false;
+      loadRows(entry.dataset, entry.fileName, { importedAt: entry.importedAt });
+      return true;
+    }
+
+    async function loadImportById(id) {
+      const entry = await idbGet("imports_history", id);
+      if (!entry) return;
+      await idbPut("current_dataset", { key: "current", importId: id });
+      loadRows(entry.dataset, entry.fileName, { importedAt: entry.importedAt });
+    }
+
+    async function listImports() {
+      if (!_db) return [];
+      const all = await idbGetAll("imports_history");
+      return all.sort((a, b) => b.importedAt.localeCompare(a.importedAt));
+    }
+
+    async function deleteImport(id) {
+      const cur = await idbGet("current_dataset", "current");
+      await idbDelete("imports_history", id);
+      if (cur && cur.importId === id) {
+        const remaining = await listImports();
+        if (remaining.length > 0) {
+          await idbPut("current_dataset", { key: "current", importId: remaining[0].id });
+          loadRows(remaining[0].dataset, remaining[0].fileName, { importedAt: remaining[0].importedAt });
+        } else {
+          await idbDelete("current_dataset", "current");
+          state.rawRows = []; state.rows = []; state.skuRows = []; state.anomalies = [];
+          document.getElementById("fileMeta").textContent = "Aucune donnée — importez un fichier";
+          renderAll();
+        }
+      }
+    }
+
+    function openHistModal() {
+      document.getElementById("histBackdrop").classList.add("open");
+      refreshHistList();
+    }
+    function closeHistModal() {
+      document.getElementById("histBackdrop").classList.remove("open");
+    }
+
+    async function refreshHistList() {
+      const body = document.getElementById("histBody");
+      const cur = _db ? await idbGet("current_dataset", "current") : null;
+      const entries = await listImports();
+      if (!entries.length) {
+        body.innerHTML = `<div class="empty">Aucun import enregistré</div>`;
+        return;
+      }
+      body.innerHTML = entries.map(e => {
+        const active = cur && cur.importId === e.id;
+        return `<div class="hist-entry">
+          <div>
+            <div class="hist-fname">${escapeHtml(e.fileName)}${active ? ' <span style="color:var(--green);font-size:11px;font-weight:700">● actif</span>' : ""}</div>
+            <div class="hist-meta">${escapeHtml(e.date)} à ${escapeHtml(e.heure)} — ${e.dataset ? e.dataset.length : "?"} lignes</div>
+          </div>
+          <button type="button" class="primary" data-load="${escapeHtml(e.id)}">Charger</button>
+          <button type="button" data-del="${escapeHtml(e.id)}">Supprimer</button>
+        </div>`;
+      }).join("");
+      body.querySelectorAll("[data-load]").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          await loadImportById(btn.dataset.load);
+          closeHistModal();
+        });
+      });
+      body.querySelectorAll("[data-del]").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          await deleteImport(btn.dataset.del);
+          await refreshHistList();
+        });
+      });
+    }
+    // ===== FIN HISTORIQUE =====
+
     function handleFile(file) {
       showLoading();
       const reader = new FileReader();
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         const data = event.target.result;
         const workbook = XLSX.read(data, { type: "array", cellDates: false });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(sheet, { defval: null, raw: true })
           .filter(r => Object.values(r).some(v => v !== null && v !== "" && v !== undefined));
         loadRows(rows, file.name);
+        await saveImport(rows, file.name);
       };
       reader.readAsArrayBuffer(file);
     }
@@ -2028,8 +2213,22 @@
       if (event.dataTransfer.files[0]) handleFile(event.dataTransfer.files[0]);
     });
 
-    document.getElementById("fileMeta").textContent = "Aucune donnée — importez un fichier";
-    renderAll();
+    document.getElementById("histBtn").addEventListener("click", openHistModal);
+    document.getElementById("histClose").addEventListener("click", closeHistModal);
+    document.getElementById("histBackdrop").addEventListener("click", (e) => {
+      if (e.target.id === "histBackdrop") closeHistModal();
+    });
+
+    openDB().then(async () => {
+      const loaded = await loadLatestImport();
+      if (!loaded) {
+        document.getElementById("fileMeta").textContent = "Aucune donnée — importez un fichier";
+        renderAll();
+      }
+    }).catch(() => {
+      document.getElementById("fileMeta").textContent = "Aucune donnée — importez un fichier";
+      renderAll();
+    });
   </script>
 </body>
 </html>
