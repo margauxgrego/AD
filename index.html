@@ -153,6 +153,11 @@
     .kpi.gray { border-left-color: var(--gray); }
     .kpi.blue { border-left-color: var(--blue); }
     .kpi.critical { animation: pulse-border 1.8s ease-in-out infinite; }
+    @keyframes dot-blink { 0%,80%,100% { opacity:0; } 40% { opacity:1; } }
+    .ld { opacity:0; animation: dot-blink 1.4s infinite; }
+    .ld:nth-child(1) { animation-delay:0s; }
+    .ld:nth-child(2) { animation-delay:0.25s; }
+    .ld:nth-child(3) { animation-delay:0.5s; }
     .kpi.kpi-blue-filled { background:#b8d8f0; border-left-color:#5a9ec9; }
     .kpi.kpi-blue-filled strong, .kpi.kpi-blue-filled span { color:#1a3f5c; }
     .kpi.kpi-red-filled { background:#e07878; border-left-color:#c62828; }
@@ -1473,11 +1478,11 @@
     }
 
     function showLoading() {
-      document.getElementById("dataTable").innerHTML = `<tr><td colspan="20" style="text-align:center;padding:2.5rem"><span style="display:inline-block;background:#b8d8f0;color:#1a3f5c;border:1.5px solid #5a9ec9;border-radius:8px;padding:.6rem 1.6rem;font-weight:600;font-size:.95rem">En chargement…</span></td></tr>`;
+      document.getElementById("dataTable").innerHTML = `<tr><td colspan="20" style="text-align:center;padding:2.5rem"><span style="display:inline-block;background:#b8d8f0;color:#1a3f5c;border:1.5px solid #5a9ec9;border-radius:8px;padding:.6rem 1.6rem;font-weight:600;font-size:.95rem">En chargement<span class="ld">.</span><span class="ld">.</span><span class="ld">.</span></span></td></tr>`;
     }
 
     function showDrawerLoading() {
-      document.getElementById("drawerTable").innerHTML = `<tr><td colspan="20" style="text-align:center;padding:2.5rem"><span style="display:inline-block;background:#b8d8f0;color:#1a3f5c;border:1.5px solid #5a9ec9;border-radius:8px;padding:.6rem 1.6rem;font-weight:600;font-size:.95rem">En chargement…</span></td></tr>`;
+      document.getElementById("drawerTable").innerHTML = `<tr><td colspan="20" style="text-align:center;padding:2.5rem"><span style="display:inline-block;background:#b8d8f0;color:#1a3f5c;border:1.5px solid #5a9ec9;border-radius:8px;padding:.6rem 1.6rem;font-weight:600;font-size:.95rem">En chargement<span class="ld">.</span><span class="ld">.</span><span class="ld">.</span></span></td></tr>`;
     }
 
     function handleFile(file) {
