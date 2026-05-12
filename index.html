@@ -2768,6 +2768,15 @@
     });
 
     openDB().then(async () => {
+      // SB.cfg est déjà défini (IIFE ci-dessous tourne en synchrone avant ce callback)
+      if (SB.cfg) {
+        // Supabase configuré = source de vérité cloud
+        // Ne PAS charger IndexedDB — données potentiellement périmées vs Supabase
+        document.getElementById("fileMeta").textContent = "Connexion Supabase…";
+        renderAll();
+        return;
+      }
+      // Sans Supabase — IndexedDB comme source principale (mode local)
       const loaded = await loadLatestImport();
       if (!loaded) {
         document.getElementById("fileMeta").textContent = "Aucune donnée — importez un fichier";
@@ -3247,8 +3256,12 @@
         }
 
         if (!imp) {
-          console.warn("[AUTO RESTORE START] ⚠ Aucun fichier archivé dans Storage — faites un premier import pour activer l'auto-restore");
-          sbLog("Aucun fichier archivé — importez un fichier SODA pour activer la synchronisation");
+          console.warn("[AUTO RESTORE START] ⚠ Aucun fichier dans Supabase Storage — UI vidée (Supabase est source de vérité)");
+          // Supabase n'a rien → vider l'UI pour ne pas afficher des données IndexedDB périmées
+          state.rawRows = []; state.rows = []; state.skuRows = []; state.anomalies = [];
+          document.getElementById("fileMeta").textContent = "Aucune donnée dans Supabase — importez un fichier SODA";
+          renderAll();
+          sbLog("Aucun fichier archivé — importez un fichier SODA");
           updateSyncIndicator("offline");
           return;
         }
@@ -3504,8 +3517,16 @@
       // Connexion automatique au démarrage
       if (SB.load()) {
         console.log("[SB] Auto-connexion au démarrage…");
-        SB.connect(SB.cfg.url, SB.cfg.key).then(ok => {
-          if (!ok) { console.warn("[SB] Auto-connexion échouée"); return; }
+        SB.connect(SB.cfg.url, SB.cfg.key).then(async ok => {
+          if (!ok) {
+            console.warn("[SB] Auto-connexion échouée — fallback IndexedDB");
+            const loaded = await loadLatestImport();
+            if (!loaded) {
+              document.getElementById("fileMeta").textContent = "Aucune donnée — importez un fichier";
+              renderAll();
+            }
+            return;
+          }
           btn.style.opacity = "1";
           // Charger l'historique (parallèle, non bloquant)
           SB.fetchHistory().then(rows => {
