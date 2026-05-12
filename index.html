@@ -2166,21 +2166,27 @@
         await saveImport(rows, file.name);
         // [SUPABASE: synchronisation complète → partage entre machines]
         // Attendre que le client soit prêt (auto-connect asynchrone)
+        console.log("%c[IMPORT START]", "color:#d98200;font-weight:bold", file.name, `(${rows.length} lignes)`);
         if (SB.ready) await SB.ready;
         if (SB.client) {
           const m = computeMetrics();
           await SB.logEvent(null, "import_start", file.name);
           const importId = await SB.saveImport(rows, file.name, m);
           if (importId) {
-            // Pousser sku_stats et anomalies en parallèle (non bloquant)
-            Promise.all([
+            console.log("%c[INSERT IMPORT OK]", "color:#2e7d32;font-weight:bold", "id:", importId);
+            await Promise.all([
               SB.pushSkuStats(importId, state.skuRows),
               SB.pushAnomalies(importId, state.anomalies),
               SB.logEvent(importId, "import_success", `${rows.length} lignes`)
             ]).catch(() => {});
+            console.log("%c[SYNC COMPLETE]", "color:#2e7d32;font-weight:bold", file.name);
+          } else {
+            console.error("%c[INSERT IMPORT FAILED]", "color:#c62828;font-weight:bold", "importId est null — voir erreurs ci-dessus");
           }
           state.sbKpiHistory = null;
           state.sbImports = null;
+        } else {
+          console.warn("[IMPORT] SB.client null après attente ready — pas de sync Supabase");
         }
       };
       reader.readAsArrayBuffer(file);
@@ -2944,6 +2950,7 @@
     // UI — Panneau Supabase
     // -------------------------------------------------------------------
     (function initSbPanel() {
+      console.log("%c[SUPABASE INIT] Module chargé — URL:", "color:#0b5cab;font-weight:bold", SUPABASE_URL_FIXED || "(depuis localStorage)");
       SB._initReady();
 
       const indicator = document.createElement("span");
