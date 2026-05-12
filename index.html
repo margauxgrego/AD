@@ -3161,71 +3161,99 @@
     }
 
     // -------------------------------------------------------------------
-    // AUTO-LOAD — Charger automatiquement le dernier import au démarrage
+    // AUTO RESTORE — Restaurer automatiquement le dernier import au démarrage
     // Toujours prioritaire sur IndexedDB pour la sync multi-PC
     // -------------------------------------------------------------------
     async function autoLoadLastImport() {
-      if (!SB.client) return;
-      console.log("[AUTO LOAD START] Recherche du dernier import Supabase Storage…");
+      if (!SB.client) {
+        console.warn("[AUTO RESTORE START] Annulé — client Supabase non initialisé");
+        return;
+      }
+      console.log("%c[AUTO RESTORE START]", "color:#1565c0;font-weight:bold",
+        "Recherche du dernier import dans Supabase Storage…");
+      updateSyncIndicator("uploading");
 
       try {
-        // 1. Chercher l'import avec is_last_opened = true
-        let imp = await SB.fetchLastOpened();
+        // 1. Import marqué is_last_opened = true
+        let imp = null;
+        try {
+          const { data, error } = await SB.client.from("imports")
+            .select("id,file_name,original_filename,file_url,file_path,imported_at")
+            .eq("is_last_opened", true)
+            .order("last_opened_at", { ascending: false })
+            .limit(1).maybeSingle();
+          if (error) console.warn("[AUTO RESTORE START] fetchLastOpened error:", error.message);
+          else if (data?.file_path) { imp = data; console.log("[AUTO RESTORE START] is_last_opened trouvé:", data.file_name); }
+          else console.log("[AUTO RESTORE START] is_last_opened: aucun résultat avec file_path");
+        } catch(e) { console.warn("[AUTO RESTORE START] fetchLastOpened exception:", e.message); }
 
-        // 2. Fallback : import le plus récent ayant un fichier archivé
-        if (!imp?.file_path) {
-          const { data } = await SB.client.from("imports")
+        // 2. Fallback : import le plus récent avec file_path
+        if (!imp) {
+          const { data: d2, error: e2 } = await SB.client.from("imports")
             .select("id,file_name,original_filename,file_url,file_path,imported_at")
             .not("file_path", "is", null)
             .order("imported_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          if (data?.file_path) imp = data;
+            .limit(1).maybeSingle();
+          if (e2) console.warn("[AUTO RESTORE START] fallback query error:", e2.message);
+          else if (d2?.file_path) { imp = d2; console.log("[AUTO RESTORE START] Fallback trouvé:", d2.file_name); }
+          else console.log("[AUTO RESTORE START] Fallback: aucun import avec file_path dans Supabase");
         }
 
-        if (!imp?.file_path) {
-          console.log("[AUTO LOAD START] Aucun fichier archivé trouvé dans Storage");
+        if (!imp) {
+          console.warn("[AUTO RESTORE START] ⚠ Aucun fichier archivé dans Storage — faites un premier import pour activer l'auto-restore");
+          sbLog("Aucun fichier archivé — importez un fichier SODA pour activer la synchronisation");
+          updateSyncIndicator("offline");
           return;
         }
 
         const displayName = imp.original_filename || imp.file_name;
-        console.log("%c[LAST IMPORT FOUND]", "color:#0b5cab;font-weight:bold", displayName, "— id:", imp.id);
-        sbLog(`Auto-chargement : ${displayName}…`);
-        updateSyncIndicator("uploading");
+        console.log("%c[LAST IMPORT FOUND]", "color:#0b5cab;font-weight:bold",
+          displayName, "| id:", imp.id, "| path:", imp.file_path);
+        sbLog(`Restauration automatique : ${displayName}…`);
 
-        // Régénérer une URL signée fraîche (les URLs stockées peuvent expirer)
-        const { data: urlData } = await SB.client.storage
+        // 3. Générer URL signée fraîche
+        console.log("[AUTO RESTORE START] Génération URL signée…");
+        const { data: urlData, error: urlErr } = await SB.client.storage
           .from("imports-files").createSignedUrl(imp.file_path, 3600);
+        if (urlErr) console.warn("[AUTO RESTORE START] createSignedUrl error:", urlErr.message);
         const fetchUrl = urlData?.signedUrl || imp.file_url;
-        if (!fetchUrl) throw new Error("URL Storage introuvable");
+        if (!fetchUrl) throw new Error(`URL introuvable — file_path: ${imp.file_path}, file_url: ${imp.file_url}`);
+        console.log("[AUTO RESTORE START] URL prête:", fetchUrl.substring(0, 60) + "…");
 
+        // 4. Télécharger le fichier
         const resp = await fetch(fetchUrl);
-        if (!resp.ok) throw new Error(`HTTP ${resp.status} — fichier introuvable dans Storage`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status} lors du fetch — fichier manquant dans Storage?`);
         const arrayBuffer = await resp.arrayBuffer();
-
         console.log("%c[FILE DOWNLOADED]", "color:#0b5cab;font-weight:bold",
           displayName, `(${(arrayBuffer.byteLength / 1024).toFixed(0)} Ko)`);
 
+        // 5. Parser le workbook Excel
         const workbook = XLSX.read(arrayBuffer, { type: "array", cellDates: false });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
         const rows = XLSX.utils.sheet_to_json(sheet, { defval: null, raw: true })
           .filter(r => Object.values(r).some(v => v !== null && v !== "" && v !== undefined));
+        console.log("%c[EXCEL PARSED]", "color:#6a1b9a;font-weight:bold",
+          `Feuille "${sheetName}" — ${rows.length} lignes valides`);
 
-        loadRows(rows, displayName);
+        // 6. Reconstruire l'état complet (rows, SKU, anomalies, KPIs, graphiques, UI)
+        loadRows(rows, displayName, { importedAt: imp.imported_at });
+        console.log("%c[STATE RESTORED]", "color:#2e7d32;font-weight:bold",
+          `state.rows=${state.rows.length}  skuRows=${state.skuRows.length}  anomalies=${state.anomalies.length}`);
+        console.log("%c[DASHBOARD RENDERED]", "color:#2e7d32;font-weight:bold",
+          `Tab: ${state.currentTab} — KPIs et interface reconstruits`);
 
-        // Marquer comme dernier ouvert (non bloquant)
-        SB.setLastOpened(imp.id).catch(() => {});
+        // 7. Marquer comme dernier ouvert
+        SB.setLastOpened(imp.id).catch(e => console.warn("[AUTO RESTORE START] setLastOpened:", e.message));
         _apiCache.invalidate("history");
         state.sbKpiHistory = null;
 
-        console.log("%c[UI RESTORED]", "color:#2e7d32;font-weight:bold",
-          `${rows.length} lignes chargées — interface reconstruite`);
-        sbLog(`✅ Chargé : ${displayName} (${rows.length} lignes)`);
+        sbLog(`✅ ${displayName} (${rows.length} lignes) — restauré automatiquement`);
         updateSyncIndicator("synced");
 
       } catch(e) {
-        console.error("[AUTO LOAD START] Erreur:", e.message);
-        sbLog(`❌ Auto-load échoué : ${e.message}`);
+        console.error("%c[AUTO RESTORE START] ❌ ERREUR", "color:red;font-weight:bold", e.message);
+        sbLog(`❌ Auto-restore échoué : ${e.message}`);
         updateSyncIndicator("error");
       }
     }
