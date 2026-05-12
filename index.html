@@ -2032,13 +2032,25 @@
     }
 
     function initRuptureChart() {
+      console.log("%c[RUPTURE CHART INIT]", "color:#6a1b9a;font-weight:bold",
+        `state.sbKpiHistory: ${state.sbKpiHistory === null ? "null" : (state.sbKpiHistory.length + " entrées")}`);
       const canvas = document.getElementById("ruptureChart");
-      if (!canvas) return;
+      if (!canvas) {
+        console.warn("[RUPTURE CHART INIT] canvas #ruptureChart introuvable — dashboard non affiché");
+        return;
+      }
       const histPoints = (state.sbKpiHistory || [])
         .map(r => ({ date: parseDateFromFilename(r.originalFilename || r.fileName), rupture: r.rupture ?? 0 }))
         .filter(p => p.date !== null)
         .sort((a, b) => a.date - b.date);
-      if (histPoints.length < 2) return;
+      console.log("[RUPTURE CHART INIT]", `${histPoints.length} points valides (dates parsées)`);
+      if (histPoints.length < 2) {
+        console.warn("[RUPTURE CHART INIT] Pas assez de points — graphique non rendu");
+        canvas.parentElement.innerHTML = `<div class="history-empty" style="padding:24px;text-align:center;color:var(--muted)">Pas assez d'historique pour afficher l'évolution<br><span style="font-size:11px">Au moins 2 imports avec date JJMMAAAA dans le nom de fichier requis</span></div>`;
+        return;
+      }
+      console.log("%c[RUPTURE HISTORY READY]", "color:#2e7d32;font-weight:bold",
+        histPoints.map(p => `${p.date.toLocaleDateString("fr-FR")} → ${p.rupture}`).join(" | "));
       const labels = histPoints.map(p => p.date.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "2-digit" }));
       const values = histPoints.map(p => p.rupture);
       if (state.charts["ruptureChart"]) {
@@ -2086,6 +2098,8 @@
           }
         }
       });
+      console.log("%c[RUPTURE CHART RENDERED]", "color:#2e7d32;font-weight:bold",
+        `${labels.length} points affichés`);
     }
 
     function renderHistoryPage() {
@@ -3243,10 +3257,26 @@
         console.log("%c[DASHBOARD RENDERED]", "color:#2e7d32;font-weight:bold",
           `Tab: ${state.currentTab} — KPIs et interface reconstruits`);
 
-        // 7. Marquer comme dernier ouvert
+        // 7. Charger l'historique pour le graphique ruptures (si pas encore disponible)
+        if (!state.sbKpiHistory || state.sbKpiHistory.length === 0) {
+          console.log("[RUPTURE CHART INIT] Chargement historique pour graphique ruptures…");
+          const hist = await SB.fetchHistory();
+          state.sbKpiHistory = hist || [];
+          console.log("%c[RUPTURE HISTORY READY]", "color:#2e7d32;font-weight:bold",
+            `${state.sbKpiHistory.length} imports chargés`);
+          // Re-rendre le dashboard pour reconstruire le canvas avec les données
+          if (state.currentTab === "dashboard") {
+            renderAdvancedPage("dashboard");
+          }
+        } else {
+          // Historique déjà disponible — forcer le re-rendu du graphique
+          if (state.currentTab === "dashboard") setTimeout(initRuptureChart, 0);
+        }
+
+        // 8. Marquer comme dernier ouvert
         SB.setLastOpened(imp.id).catch(e => console.warn("[AUTO RESTORE START] setLastOpened:", e.message));
         _apiCache.invalidate("history");
-        state.sbKpiHistory = null;
+        state.sbKpiHistory = state.sbKpiHistory && state.sbKpiHistory.length ? state.sbKpiHistory : null;
 
         sbLog(`✅ ${displayName} (${rows.length} lignes) — restauré automatiquement`);
         updateSyncIndicator("synced");
@@ -3449,8 +3479,12 @@
             state.sbKpiHistory = rows || [];
             console.log(`[SB] Historique chargé: ${(rows||[]).length} entrées`);
             if (state.currentTab === "history") renderAdvancedPage("history");
+            // Re-rendre le dashboard si actif — données historiques nécessaires au graphique ruptures
+            if (state.currentTab === "dashboard" && state.rows.length > 0) {
+              renderAdvancedPage("dashboard");
+            }
           });
-          // Auto-load dernier import — toujours, pour sync multi-PC
+          // Auto-restore dernier import — toujours, pour sync multi-PC
           autoLoadLastImport();
         });
       } else {
