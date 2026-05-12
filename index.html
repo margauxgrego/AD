@@ -2036,42 +2036,42 @@
       const setMsg = (html) => { container.innerHTML = html; };
       setMsg(`<span style="color:var(--muted);font-size:12px">Chargement historique…</span>`);
 
-      console.log("%c[RUPTURE CHART INIT]", "color:#6a1b9a;font-weight:bold", "Requête directe kpi_snapshots…");
+      console.log("%c[RUPTURE CHART INIT]", "color:#6a1b9a;font-weight:bold", "Requête imports + kpi_snapshots…");
 
-      // Requête directe Supabase — indépendante de state.sbKpiHistory
-      let rows = null;
-      if (SB.client) {
-        try {
-          const { data, error } = await SB.client
-            .from("kpi_snapshots")
-            .select("snapshot_at, alert_rupture, imports!inner(file_name, original_filename)")
-            .order("snapshot_at", { ascending: true })
-            .limit(50);
-          if (error) {
-            console.error("[RUPTURE CHART INIT] Erreur Supabase:", error.message, error.code);
-            setMsg(`<span style="color:var(--red);font-size:12px">Erreur Supabase : ${error.message}</span>`);
-            return;
-          }
-          rows = data;
-          console.log("[RUPTURE CHART INIT] Données reçues:", rows.length, "snapshots");
-        } catch(e) {
-          console.error("[RUPTURE CHART INIT] Exception:", e.message);
-          setMsg(`<span style="color:var(--red);font-size:12px">Erreur : ${e.message}</span>`);
-          return;
-        }
-      }
+      if (!SB.client) { setMsg(`<span style="color:var(--muted);font-size:12px">Non connecté à Supabase</span>`); return; }
 
-      if (!rows || rows.length === 0) {
-        console.warn("[RUPTURE CHART INIT] Aucune donnée dans kpi_snapshots");
-        setMsg(`<span style="color:var(--muted);font-size:12px">Pas encore d'historique — faites au moins 2 imports pour afficher l'évolution</span>`);
+      let histPoints = [];
+      try {
+        // 1. Requête imports (toujours peuplé)
+        const { data: imps, error: e1 } = await SB.client
+          .from("imports")
+          .select("id, imported_at, file_name, original_filename")
+          .order("imported_at", { ascending: true })
+          .limit(50);
+        if (e1) throw new Error("imports: " + e1.message);
+        console.log("[RUPTURE CHART INIT] imports:", imps?.length ?? 0, "lignes");
+
+        // 2. Requête kpi_snapshots (optionnel — peut être vide)
+        const { data: snaps } = await SB.client
+          .from("kpi_snapshots")
+          .select("import_id, alert_rupture")
+          .limit(50);
+        const snapMap = {};
+        (snaps || []).forEach(s => { snapMap[s.import_id] = s.alert_rupture ?? 0; });
+        console.log("[RUPTURE CHART INIT] kpi_snapshots:", Object.keys(snapMap).length, "entrées");
+
+        // 3. Jointure JS — date depuis imports, rupture depuis kpi_snapshots (0 si absent)
+        histPoints = (imps || []).map(imp => ({
+          date: new Date(imp.imported_at),
+          rupture: snapMap[imp.id] ?? 0,
+          label: imp.original_filename || imp.file_name || ""
+        })).filter(p => !isNaN(p.date.getTime()));
+
+      } catch(e) {
+        console.error("[RUPTURE CHART INIT] Erreur:", e.message);
+        setMsg(`<span style="color:var(--red);font-size:12px">Erreur : ${e.message}</span>`);
         return;
       }
-
-      const histPoints = rows.map(r => ({
-        date: new Date(r.snapshot_at),
-        rupture: r.alert_rupture ?? 0,
-        label: (r.imports?.original_filename || r.imports?.file_name || "")
-      })).filter(p => !isNaN(p.date.getTime()));
 
       console.log("%c[RUPTURE HISTORY READY]", "color:#2e7d32;font-weight:bold",
         `${histPoints.length} points`, histPoints.map(p => `${p.date.toLocaleDateString("fr-FR")}→${p.rupture}`).join(" | "));
@@ -2197,13 +2197,15 @@
 
     function openDB() {
       return new Promise((resolve, reject) => {
-        const req = indexedDB.open("soda_imports_db", 1);
+        const req = indexedDB.open("soda_imports_db", 2);
         req.onupgradeneeded = (e) => {
           const d = e.target.result;
           if (!d.objectStoreNames.contains("imports_history"))
             d.createObjectStore("imports_history", { keyPath: "id" });
           if (!d.objectStoreNames.contains("current_dataset"))
             d.createObjectStore("current_dataset", { keyPath: "key" });
+          if (!d.objectStoreNames.contains("sb_cache"))
+            d.createObjectStore("sb_cache", { keyPath: "key" });
         };
         req.onsuccess = (e) => { _db = e.target.result; resolve(_db); };
         req.onerror = () => reject(req.error);
@@ -3269,62 +3271,62 @@
         const displayName = imp.original_filename || imp.file_name;
         console.log("%c[LAST IMPORT FOUND]", "color:#0b5cab;font-weight:bold",
           displayName, "| id:", imp.id, "| path:", imp.file_path);
-        sbLog(`Restauration automatique : ${displayName}…`);
 
-        // 3. Générer URL signée fraîche
-        console.log("[AUTO RESTORE START] Génération URL signée…");
-        const { data: urlData, error: urlErr } = await SB.client.storage
-          .from("imports-files").createSignedUrl(imp.file_path, 3600);
-        if (urlErr) console.warn("[AUTO RESTORE START] createSignedUrl error:", urlErr.message);
-        const fetchUrl = urlData?.signedUrl || imp.file_url;
-        if (!fetchUrl) throw new Error(`URL introuvable — file_path: ${imp.file_path}, file_url: ${imp.file_url}`);
-        console.log("[AUTO RESTORE START] URL prête:", fetchUrl.substring(0, 60) + "…");
-
-        // 4. Télécharger le fichier
-        const resp = await fetch(fetchUrl);
-        if (!resp.ok) throw new Error(`HTTP ${resp.status} lors du fetch — fichier manquant dans Storage?`);
-        const arrayBuffer = await resp.arrayBuffer();
-        console.log("%c[FILE DOWNLOADED]", "color:#0b5cab;font-weight:bold",
-          displayName, `(${(arrayBuffer.byteLength / 1024).toFixed(0)} Ko)`);
-
-        // 5. Parser le workbook Excel
-        const workbook = XLSX.read(arrayBuffer, { type: "array", cellDates: false });
-        const sheetName = workbook.SheetNames[0];
-        const sheet = workbook.Sheets[sheetName];
-        const rows = XLSX.utils.sheet_to_json(sheet, { defval: null, raw: true })
-          .filter(r => Object.values(r).some(v => v !== null && v !== "" && v !== undefined));
-        console.log("%c[EXCEL PARSED]", "color:#6a1b9a;font-weight:bold",
-          `Feuille "${sheetName}" — ${rows.length} lignes valides`);
-
-        // 6. Reconstruire l'état complet (rows, SKU, anomalies, KPIs, graphiques, UI)
-        loadRows(rows, displayName, { importedAt: imp.imported_at });
-        console.log("%c[STATE RESTORED]", "color:#2e7d32;font-weight:bold",
-          `state.rows=${state.rows.length}  skuRows=${state.skuRows.length}  anomalies=${state.anomalies.length}`);
-        console.log("%c[DASHBOARD RENDERED]", "color:#2e7d32;font-weight:bold",
-          `Tab: ${state.currentTab} — KPIs et interface reconstruits`);
-
-        // 7. Charger l'historique pour le graphique ruptures (si pas encore disponible)
-        if (!state.sbKpiHistory || state.sbKpiHistory.length === 0) {
-          console.log("[RUPTURE CHART INIT] Chargement historique pour graphique ruptures…");
-          const hist = await SB.fetchHistory();
-          state.sbKpiHistory = hist || [];
-          console.log("%c[RUPTURE HISTORY READY]", "color:#2e7d32;font-weight:bold",
-            `${state.sbKpiHistory.length} imports chargés`);
-          // Re-rendre le dashboard pour reconstruire le canvas avec les données
-          if (state.currentTab === "dashboard") {
-            renderAdvancedPage("dashboard");
-          }
-        } else {
-          // Historique déjà disponible — forcer le re-rendu du graphique
-          if (state.currentTab === "dashboard") setTimeout(initRuptureChart, 0);
+        // 3. Cache IndexedDB — évite le re-téléchargement si même import
+        let rows = null;
+        if (_db) {
+          try {
+            const cached = await idbGet("sb_cache", "last");
+            if (cached?.supabaseImportId === imp.id && cached?.dataset?.length > 0) {
+              rows = cached.dataset;
+              console.log("%c[FILE DOWNLOADED]", "color:#2e7d32;font-weight:bold",
+                `Cache IndexedDB — ${rows.length} lignes (pas de téléchargement)`);
+              sbLog(`Chargé depuis le cache : ${displayName} (${rows.length} lignes)`);
+            }
+          } catch(e) { /* cache miss — on télécharge */ }
         }
 
-        // 8. Marquer comme dernier ouvert
-        SB.setLastOpened(imp.id).catch(e => console.warn("[AUTO RESTORE START] setLastOpened:", e.message));
-        _apiCache.invalidate("history");
-        state.sbKpiHistory = state.sbKpiHistory && state.sbKpiHistory.length ? state.sbKpiHistory : null;
+        // 4. Téléchargement depuis Storage si pas en cache
+        if (!rows) {
+          sbLog(`Téléchargement : ${displayName}…`);
+          const { data: urlData, error: urlErr } = await SB.client.storage
+            .from("imports-files").createSignedUrl(imp.file_path, 3600);
+          if (urlErr) console.warn("[AUTO RESTORE START] createSignedUrl error:", urlErr.message);
+          const fetchUrl = urlData?.signedUrl || imp.file_url;
+          if (!fetchUrl) throw new Error(`URL introuvable — file_path: ${imp.file_path}`);
 
-        sbLog(`✅ ${displayName} (${rows.length} lignes) — restauré automatiquement`);
+          const resp = await fetch(fetchUrl);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status} — fichier manquant dans Storage`);
+          const arrayBuffer = await resp.arrayBuffer();
+          console.log("%c[FILE DOWNLOADED]", "color:#0b5cab;font-weight:bold",
+            displayName, `(${(arrayBuffer.byteLength / 1024).toFixed(0)} Ko)`);
+
+          // 5. Parser Excel
+          const workbook = XLSX.read(arrayBuffer, { type: "array", cellDates: false });
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
+          rows = XLSX.utils.sheet_to_json(sheet, { defval: null, raw: true })
+            .filter(r => Object.values(r).some(v => v !== null && v !== "" && v !== undefined));
+          console.log("%c[EXCEL PARSED]", "color:#6a1b9a;font-weight:bold", `${rows.length} lignes`);
+
+          // Mettre en cache pour les prochains F5
+          if (_db) idbPut("sb_cache", {
+            key: "last", supabaseImportId: imp.id,
+            fileName: displayName, importedAt: imp.imported_at, dataset: rows
+          }).catch(() => {});
+        }
+
+        // 6. Reconstruire toute l'UI
+        loadRows(rows, displayName, { importedAt: imp.imported_at });
+        console.log("%c[STATE RESTORED]", "color:#2e7d32;font-weight:bold",
+          `rows=${state.rows.length}  skuRows=${state.skuRows.length}  anomalies=${state.anomalies.length}`);
+        console.log("%c[DASHBOARD RENDERED]", "color:#2e7d32;font-weight:bold", state.currentTab);
+
+        // 7. Marquer comme dernier ouvert (non bloquant)
+        SB.setLastOpened(imp.id).catch(() => {});
+        _apiCache.invalidate("history");
+        state.sbKpiHistory = null;
+
+        sbLog(`✅ ${displayName} (${rows.length} lignes)`);
         updateSyncIndicator("synced");
 
       } catch(e) {
