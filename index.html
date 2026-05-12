@@ -1894,7 +1894,15 @@
 
     function renderAdvancedPage(tab) {
       const el = document.getElementById("advancedPages");
-      if (tab === "dashboard") { el.innerHTML = renderDashboard(); setTimeout(initRuptureChart, 0); }
+      if (tab === "dashboard") {
+        // Détruire l'instance Chart.js rupture avant de recréer le canvas (innerHTML détruit le DOM)
+        if (state.charts["ruptureChart"]) {
+          state.charts["ruptureChart"].destroy();
+          delete state.charts["ruptureChart"];
+        }
+        el.innerHTML = renderDashboard();
+        setTimeout(initRuptureChart, 0);
+      }
       else if (tab === "history") {
         el.innerHTML = renderHistoryPage();
         // [SUPABASE] Charger l'historique KPI si connecté et pas encore en cache
