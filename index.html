@@ -1895,13 +1895,12 @@
     function renderAdvancedPage(tab) {
       const el = document.getElementById("advancedPages");
       if (tab === "dashboard") {
-        // Détruire l'instance Chart.js rupture avant de recréer le canvas (innerHTML détruit le DOM)
         if (state.charts["ruptureChart"]) {
           state.charts["ruptureChart"].destroy();
           delete state.charts["ruptureChart"];
         }
         el.innerHTML = renderDashboard();
-        setTimeout(initRuptureChart, 0);
+        setTimeout(() => initRuptureChart(), 0);
       }
       else if (tab === "history") {
         el.innerHTML = renderHistoryPage();
@@ -2005,17 +2004,8 @@
         `<tr class="clickable-row" data-adv-action="drawer" data-adv-filter="Stock Kube"><td>${escapeHtml(g)}</td><td><strong>${n}</strong></td><td style="color:var(--muted);font-size:11px">${gammes.length > 0 && state.rows.filter(r => r.STATUT === "STOCK KUBE" && r.EMPLACEMENT === "KUBE DESIGN").length > 0 ? ((n / state.rows.filter(r => r.STATUT === "STOCK KUBE" && r.EMPLACEMENT === "KUBE DESIGN").length) * 100).toFixed(1) + "%" : "—"}</td></tr>`
       ).join("");
 
-      // Rupture chart data from Supabase history — date from snapshot_at (fiable), pas du nom de fichier
-      const histPoints = (state.sbKpiHistory || [])
-        .map(r => ({ date: r.date instanceof Date ? r.date : new Date(r.date), rupture: r.rupture ?? 0, label: r.originalFilename || r.fileName }))
-        .filter(p => p.date && !isNaN(p.date.getTime()))
-        .sort((a, b) => a.date - b.date);
-
-      const ruptureChartHtml = state.sbKpiHistory === null && SB.client
-        ? `<div class="history-empty">Chargement…</div>`
-        : histPoints.length < 2
-          ? `<div class="history-empty" style="padding:24px;text-align:center;color:var(--muted)">Pas assez d'historique — au moins 2 imports requis</div>`
-          : `<canvas id="ruptureChart" style="height:220px;width:100%"></canvas>`;
+      // Container du graphique — initRuptureChart() gère le contenu de façon async
+      const ruptureChartHtml = `<div id="ruptureChartContainer" style="min-height:220px;display:flex;align-items:center;justify-content:center"><canvas id="ruptureChart" style="height:220px;width:100%"></canvas></div>`;
 
       return `
         <div class="adv-section-title">Évolution des ruptures</div>
@@ -2039,36 +2029,70 @@
       `;
     }
 
-    function initRuptureChart() {
-      console.log("%c[RUPTURE CHART INIT]", "color:#6a1b9a;font-weight:bold",
-        `state.sbKpiHistory: ${state.sbKpiHistory === null ? "null" : (state.sbKpiHistory.length + " entrées")}`);
-      const canvas = document.getElementById("ruptureChart");
-      if (!canvas) {
-        console.warn("[RUPTURE CHART INIT] canvas #ruptureChart introuvable — dashboard non affiché");
+    async function initRuptureChart() {
+      const container = document.getElementById("ruptureChartContainer");
+      if (!container) return;
+
+      const setMsg = (html) => { container.innerHTML = html; };
+      setMsg(`<span style="color:var(--muted);font-size:12px">Chargement historique…</span>`);
+
+      console.log("%c[RUPTURE CHART INIT]", "color:#6a1b9a;font-weight:bold", "Requête directe kpi_snapshots…");
+
+      // Requête directe Supabase — indépendante de state.sbKpiHistory
+      let rows = null;
+      if (SB.client) {
+        try {
+          const { data, error } = await SB.client
+            .from("kpi_snapshots")
+            .select("snapshot_at, alert_rupture, imports!inner(file_name, original_filename)")
+            .order("snapshot_at", { ascending: true })
+            .limit(50);
+          if (error) {
+            console.error("[RUPTURE CHART INIT] Erreur Supabase:", error.message, error.code);
+            setMsg(`<span style="color:var(--red);font-size:12px">Erreur Supabase : ${error.message}</span>`);
+            return;
+          }
+          rows = data;
+          console.log("[RUPTURE CHART INIT] Données reçues:", rows.length, "snapshots");
+        } catch(e) {
+          console.error("[RUPTURE CHART INIT] Exception:", e.message);
+          setMsg(`<span style="color:var(--red);font-size:12px">Erreur : ${e.message}</span>`);
+          return;
+        }
+      }
+
+      if (!rows || rows.length === 0) {
+        console.warn("[RUPTURE CHART INIT] Aucune donnée dans kpi_snapshots");
+        setMsg(`<span style="color:var(--muted);font-size:12px">Pas encore d'historique — faites au moins 2 imports pour afficher l'évolution</span>`);
         return;
       }
-      const histPoints = (state.sbKpiHistory || [])
-        .map(r => ({ date: r.date instanceof Date ? r.date : new Date(r.date), rupture: r.rupture ?? 0, label: r.originalFilename || r.fileName }))
-        .filter(p => p.date && !isNaN(p.date.getTime()))
-        .sort((a, b) => a.date - b.date);
-      console.log("[RUPTURE CHART INIT]", `${histPoints.length} points valides (snapshot_at)`,
-        histPoints.map(p => `${p.date.toLocaleDateString("fr-FR")}→${p.rupture}`).join(" | "));
-      if (histPoints.length < 2) {
-        console.warn("[RUPTURE CHART INIT] Pas assez de points — graphique non rendu");
-        canvas.parentElement.innerHTML = `<div class="history-empty" style="padding:24px;text-align:center;color:var(--muted)">Pas assez d'historique pour afficher l'évolution<br><span style="font-size:11px">Au moins 2 imports avec date JJMMAAAA dans le nom de fichier requis</span></div>`;
-        return;
-      }
+
+      const histPoints = rows.map(r => ({
+        date: new Date(r.snapshot_at),
+        rupture: r.alert_rupture ?? 0,
+        label: (r.imports?.original_filename || r.imports?.file_name || "")
+      })).filter(p => !isNaN(p.date.getTime()));
+
       console.log("%c[RUPTURE HISTORY READY]", "color:#2e7d32;font-weight:bold",
-        histPoints.map(p => `${p.date.toLocaleDateString("fr-FR")} → ${p.rupture}`).join(" | "));
+        `${histPoints.length} points`, histPoints.map(p => `${p.date.toLocaleDateString("fr-FR")}→${p.rupture}`).join(" | "));
+
+      if (histPoints.length < 2) {
+        setMsg(`<span style="color:var(--muted);font-size:12px">Pas assez d'historique — au moins 2 imports requis</span>`);
+        return;
+      }
+
+      // Recréer le canvas dans le container
+      container.innerHTML = `<canvas id="ruptureChart" style="height:220px;width:100%"></canvas>`;
+      const canvas = document.getElementById("ruptureChart");
+
+      if (state.charts["ruptureChart"]) {
+        state.charts["ruptureChart"].destroy();
+        delete state.charts["ruptureChart"];
+      }
+
       const labels = histPoints.map(p => p.date.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "2-digit" }));
       const values = histPoints.map(p => p.rupture);
-      if (state.charts["ruptureChart"]) {
-        const c = state.charts["ruptureChart"];
-        c.data.labels = labels;
-        c.data.datasets[0].data = values;
-        c.update("none");
-        return;
-      }
+
       state.charts["ruptureChart"] = new Chart(canvas, {
         type: "line",
         data: {
@@ -2095,7 +2119,7 @@
                 label(ctx) {
                   const val = ctx.parsed.y;
                   const prev = ctx.dataIndex > 0 ? ctx.dataset.data[ctx.dataIndex - 1] : null;
-                  const delta = prev != null ? (val - prev > 0 ? ` ▲${val - prev}` : val - prev < 0 ? ` ▼${Math.abs(val - prev)}` : " —") : "";
+                  const delta = prev != null ? (val - prev > 0 ? ` ▲${val-prev}` : val - prev < 0 ? ` ▼${Math.abs(val-prev)}` : " —") : "";
                   return `Ruptures : ${val}${delta}`;
                 }
               }
@@ -2107,8 +2131,8 @@
           }
         }
       });
-      console.log("%c[RUPTURE CHART RENDERED]", "color:#2e7d32;font-weight:bold",
-        `${labels.length} points affichés`);
+
+      console.log("%c[RUPTURE CHART RENDERED]", "color:#2e7d32;font-weight:bold", `${labels.length} points affichés`);
     }
 
     function renderHistoryPage() {
