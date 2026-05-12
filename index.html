@@ -2164,11 +2164,20 @@
         loadRows(rows, file.name);
         // [PERSISTENCE: IndexedDB — stockage local offline-first]
         await saveImport(rows, file.name);
-        // [SUPABASE: push métadonnées + KPI → partage entre machines]
+        // [SUPABASE: synchronisation complète → partage entre machines]
         if (SB.client) {
           const m = computeMetrics();
-          await SB.saveImport(rows, file.name, m);
-          state.sbKpiHistory = null;   // invalider le cache KPI
+          await SB.logEvent(null, "import_start", file.name);
+          const importId = await SB.saveImport(rows, file.name, m);
+          if (importId) {
+            // Pousser sku_stats et anomalies en parallèle (non bloquant)
+            Promise.all([
+              SB.pushSkuStats(importId, state.skuRows),
+              SB.pushAnomalies(importId, state.anomalies),
+              SB.logEvent(importId, "import_success", `${rows.length} lignes`)
+            ]).catch(() => {});
+          }
+          state.sbKpiHistory = null;
           state.sbImports = null;
         }
       };
@@ -2770,6 +2779,100 @@
           if (error) throw error;
           return data;
         } catch (e) { console.warn("[Supabase] fetchAnalytics:", e.message); return null; }
+      },
+
+      // ---------------------------------------------------------------
+      // [TABLE: sku_stats] — Stats par MARKETING_NAME
+      // ---------------------------------------------------------------
+      async pushSkuStats(importId, skuRows) {
+        if (!this.client || !importId || !skuRows.length) return false;
+        const BATCH = 500;
+        try {
+          const rows = skuRows.map(r => ({
+            import_id:      importId,
+            marketing_name: r.canonicalName || r.name || "",
+            gamme:          r.gamme || null,
+            qty_kube:       r.qtyKube || 0,
+            qty_standby:    r.qtyStandby || 0,
+            qty_total:      r.qtyTotal || 0,
+            alert_level:    r.alert || "ok",
+            is_factice:     r.isFactice || false
+          }));
+          for (let i = 0; i < rows.length; i += BATCH) {
+            const { error } = await this.client.from("sku_stats").insert(rows.slice(i, i + BATCH));
+            if (error) throw error;
+          }
+          return true;
+        } catch (e) { console.warn("[Supabase] pushSkuStats:", e.message); return false; }
+      },
+
+      async fetchSkuStats(importId) {
+        if (!this.client) return null;
+        try {
+          const q = importId
+            ? this.client.from("sku_stats").select("*").eq("import_id", importId)
+            : this.client.from("sku_stats").select("*")
+                .eq("import_id", this.client.from("imports").select("id").order("imported_at", { ascending: false }).limit(1));
+          const { data, error } = await q.order("qty_kube", { ascending: true });
+          if (error) throw error;
+          return data;
+        } catch (e) { console.warn("[Supabase] fetchSkuStats:", e.message); return null; }
+      },
+
+      // ---------------------------------------------------------------
+      // [TABLE: anomalies] — Anomalies détectées à l'import
+      // ---------------------------------------------------------------
+      async pushAnomalies(importId, anomalies) {
+        if (!this.client || !importId || !anomalies.length) return false;
+        const BATCH = 500;
+        try {
+          const rows = anomalies.map(a => ({
+            import_id:    importId,
+            anomaly_type: a.type || "",
+            sku:          a.SKU || null,
+            imei:         a.IMEI || null,
+            sn:           a.SN || null,
+            statut:       a.STATUT || null,
+            emplacement:  a.EMPLACEMENT || null,
+            detail:       a.detail || null,
+            dismissed:    false
+          }));
+          for (let i = 0; i < rows.length; i += BATCH) {
+            const { error } = await this.client.from("anomalies").insert(rows.slice(i, i + BATCH));
+            if (error) throw error;
+          }
+          return true;
+        } catch (e) { console.warn("[Supabase] pushAnomalies:", e.message); return false; }
+      },
+
+      async fetchAnomalies(importId) {
+        if (!this.client) return null;
+        try {
+          const { data, error } = await withRetry(() =>
+            this.client.from("anomalies")
+              .select("*")
+              .eq("import_id", importId)
+              .eq("dismissed", false)
+          );
+          if (error) throw error;
+          return data;
+        } catch (e) { console.warn("[Supabase] fetchAnomalies:", e.message); return null; }
+      },
+
+      // ---------------------------------------------------------------
+      // [TABLE: import_logs] — Journal d'audit
+      // events : import_start | import_success | import_error | export_generated
+      // ---------------------------------------------------------------
+      async logEvent(importId, event, detail) {
+        if (!this.client) return;
+        try {
+          await this.client.from("import_logs").insert({
+            import_id:  importId || null,
+            event,
+            detail:     detail || null,
+            user_agent: navigator.userAgent.substring(0, 200)
+          });
+        } catch (e) { /* logs non bloquants */ }
       },
 
       // ---------------------------------------------------------------
