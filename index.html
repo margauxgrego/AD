@@ -70,7 +70,52 @@
       color: var(--ink);
     }
 
-    .app-shell { min-height: 100vh; }
+    .app-shell { display: flex; min-height: 100vh; }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 210px;
+      min-width: 210px;
+      background: #0b1e35;
+      display: flex;
+      flex-direction: column;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      z-index: 60;
+      flex-shrink: 0;
+    }
+    .sidebar-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 14px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .sidebar-brand img { height: 36px; width: auto; border-radius: 4px; }
+    .sidebar-brand-text { display: flex; flex-direction: column; }
+    .sidebar-brand-title { color: #e8f0f8; font-size: 12px; font-weight: 700; line-height: 1.2; }
+    .sidebar-brand-sub { color: rgba(255,255,255,0.45); font-size: 10px; line-height: 1.3; margin-top: 1px; }
+    .sidebar-nav { display: flex; flex-direction: column; padding: 10px 0; flex: 1; }
+    .sidebar-section { color: rgba(255,255,255,0.35); font-size: 10px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; padding: 10px 14px 4px; }
+    .sidebar-footer {
+      padding: 10px 14px 14px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      color: rgba(255,255,255,0.35);
+      font-size: 10px;
+      line-height: 1.4;
+    }
+
+    /* ── Main content area ── */
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      overflow: hidden;
+    }
+
     .topbar {
       position: sticky;
       top: 0;
@@ -81,11 +126,12 @@
     }
 
     .brand-row {
-      display: grid;
-      grid-template-columns: minmax(220px, 1fr) minmax(220px, 380px) auto;
+      display: flex;
       gap: 12px;
       align-items: center;
+      justify-content: space-between;
       padding: 10px 18px 8px;
+      flex-wrap: wrap;
     }
 
     h1 {
@@ -202,6 +248,8 @@
 
     .workspace {
       padding: 12px 18px 24px;
+      overflow-y: auto;
+      flex: 1;
     }
 
     .import-band {
@@ -250,34 +298,40 @@
       border-color: var(--blue);
     }
 
-    .tabs {
-      display: flex;
-      gap: 6px;
-      border-bottom: 1px solid var(--line);
-      margin-bottom: 12px;
-      overflow-x: auto;
-      position: sticky;
-      top: 0;
-      z-index: 30;
-      background: var(--bg);
-      padding-top: 2px;
-    }
+    /* Tabs are now sidebar nav items */
+    .tabs { display: contents; }
 
     .tab {
       border: 0;
-      border-bottom: 3px solid transparent;
+      border-left: 3px solid transparent;
       background: transparent;
       border-radius: 0;
-      min-height: 40px;
-      padding: 9px 13px;
+      min-height: 36px;
+      padding: 8px 14px 8px 13px;
       white-space: nowrap;
-      color: var(--muted);
+      color: rgba(255,255,255,0.55);
+      text-align: left;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.12s, color 0.12s;
+      width: 100%;
     }
 
+    .tab:hover { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.85); border-color: transparent; }
+
     .tab.active {
-      color: var(--blue);
-      border-bottom-color: var(--blue);
+      color: #fff;
+      background: rgba(255,255,255,0.10);
+      border-left-color: #4a9edd;
       font-weight: 650;
+    }
+
+    .tab.tab-adv {
+      color: rgba(160,210,255,0.65);
+    }
+    .tab.tab-adv.active {
+      color: #a0d2ff;
+      border-left-color: #a0d2ff;
     }
 
     .panel {
@@ -494,10 +548,55 @@
 
     .hidden { display: none !important; }
 
+    /* ── Advanced pages ── */
+    .adv-page { padding: 0 0 24px; }
+    .adv-grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-bottom: 14px; }
+    .adv-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 14px; }
+    .adv-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 14px; }
+    .adv-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: 0 1px 3px rgba(20,30,42,0.05);
+    }
+    .adv-card-title { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .adv-card-value { font-size: 28px; font-weight: 700; color: var(--ink); line-height: 1; }
+    .adv-card-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .adv-card-chart { height: 200px; margin-top: 8px; }
+    .adv-section-title { font-size: 14px; font-weight: 700; color: var(--ink); margin: 18px 0 10px; border-left: 3px solid var(--blue); padding-left: 10px; }
+    .adv-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .adv-table th { background: #f8fafc; color: #324255; font-weight: 650; padding: 8px 10px; border-bottom: 2px solid var(--line); text-align: left; }
+    .adv-table td { padding: 7px 10px; border-bottom: 1px solid #edf1f5; }
+    .adv-table tr:hover td { background: #f9fbfd; }
+    .risk-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+    .risk-item:last-child { border-bottom: none; }
+    .risk-badge { min-width: 28px; text-align: center; font-weight: 700; font-size: 15px; }
+    .risk-name { flex: 1; font-size: 13px; }
+    .risk-days { font-size: 12px; color: var(--muted); white-space: nowrap; }
+    .delta-up { color: var(--green); }
+    .delta-down { color: var(--red); }
+    .delta-flat { color: var(--muted); }
+    .history-empty { text-align: center; color: var(--muted); padding: 40px; font-size: 14px; }
+    .adv-clickable { cursor: pointer; transition: box-shadow 0.15s, transform 0.1s; }
+    .adv-clickable:hover { box-shadow: 0 4px 14px rgba(11,92,171,0.14); transform: translateY(-1px); border-color: #b3cde8; }
+    .adv-clickable:active { transform: translateY(0); }
+    .adv-drill-hint { font-size: 10px; color: var(--blue); margin-top: 6px; opacity: 0.7; }
+    .adv-table tr.clickable-row { cursor: pointer; }
+    .adv-table tr.clickable-row:hover td { background: #f0f7ff; }
+
     @media (max-width: 1100px) {
       .brand-row { grid-template-columns: 1fr; }
       .file-meta { text-align: left; white-space: normal; }
       .charts { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
+      .adv-grid-4 { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 900px) {
+      .sidebar { width: 52px; min-width: 52px; }
+      .sidebar-brand-text, .tab span.tab-label, .sidebar-section, .sidebar-footer { display: none; }
+      .tab { padding: 10px; text-align: center; font-size: 16px; }
+      .adv-grid-2, .adv-grid-3, .adv-grid-4 { grid-template-columns: 1fr; }
     }
 
     @media (max-width: 720px) {
@@ -538,13 +637,24 @@
 <body>
   <input id="fileInput" class="hidden" type="file" accept=".xlsx,.xls,.csv,.txt">
   <div class="app-shell">
+    <nav class="sidebar" id="appSidebar">
+      <div class="sidebar-brand" id="sidebarBrand">
+        <div class="sidebar-brand-text">
+          <div class="sidebar-brand-title">Kube Design</div>
+          <div class="sidebar-brand-sub">Service Produit</div>
+        </div>
+      </div>
+      <nav id="tabs" class="sidebar-nav"></nav>
+      <div class="sidebar-footer" id="sidebarFooter"></div>
+    </nav>
+    <div class="main-content">
     <header class="topbar">
       <div class="brand-row">
-        <div style="display:flex;align-items:center;gap:14px">
+        <div style="display:none">
           <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAPoAAACQCAYAAAAhg3YBAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAyZpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuNi1jMTM4IDc5LjE1OTgyNCwgMjAxNi8wOS8xNC0wMTowOTowMSAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENDIDIwMTcgKFdpbmRvd3MpIiB4bXBNTTpJbnN0YW5jZUlEPSJ4bXAuaWlkOkI0NEI3MzJFRDlDMzExRTc4NTcwQ0Y5M0U2MTUzMDgxIiB4bXBNTTpEb2N1bWVudElEPSJ4bXAuZGlkOkI0NEI3MzJGRDlDMzExRTc4NTcwQ0Y5M0U2MTUzMDgxIj4gPHhtcE1NOkRlcml2ZWRGcm9tIHN0UmVmOmluc3RhbmNlSUQ9InhtcC5paWQ6QjQ0QjczMkNEOUMzMTFFNzg1NzBDRjkzRTYxNTMwODEiIHN0UmVmOmRvY3VtZW50SUQ9InhtcC5kaWQ6QjQ0QjczMkREOUMzMTFFNzg1NzBDRjkzRTYxNTMwODEiLz4gPC9yZGY6RGVzY3JpcHRpb24+IDwvcmRmOlJERj4gPC94OnhtcG1ldGE+IDw/eHBhY2tldCBlbmQ9InIiPz73KCtsAABDVElEQVR42ux9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" alt="Kube Design" style="height:56px;width:auto;display:block">
           <div>
-            <h1>Gestion de stock au service produit</h1>
-            <div class="subtitle">Dashboard complémentaire SODA pour Kube Design</div>
+            <h1 class="hidden">Gestion de stock au service produit</h1>
+            <div class="hidden">Dashboard complémentaire SODA pour Kube Design</div>
           </div>
         </div>
         <div>
@@ -558,8 +668,6 @@
     </header>
 
     <main class="workspace">
-      <nav class="tabs" id="tabs"></nav>
-
       <section id="dropZone" class="import-band">
         <div class="drop-zone">
           <strong>Glissez votre export SODA ici</strong>
@@ -595,7 +703,9 @@
         </div>
         <div class="pager" id="pager"></div>
       </section>
+      <section id="advancedPages" class="hidden adv-page"></section>
     </main>
+  </div>
   </div>
 
   <div id="histBackdrop" class="hist-backdrop">
@@ -669,7 +779,7 @@
       dismissedAnomalies: new Set(),
       anomalyTypeFilter: "",
       filteredRows: [],
-      currentTab: "detail",
+      currentTab: "dashboard",
       page: 1,
       sort: { key: "__index", dir: "asc" },
       techSearch: "",
@@ -683,23 +793,26 @@
       livraisonSearch: "",
       livraisonEnseigne: "",
       livraisonExpediteur: "",
-      livraisonDirection: "",
       fileName: "Données de démonstration",
       importedAt: new Date(),
       charts: {},
       drawerRows: [],
       drawerTitle: "",
+      sbKpiHistory: null,   // null=non chargé, []=vide, [...]=données Supabase
+      sbImports: null,      // null=non chargé, []=vide, [...]=liste imports Supabase
     };
 
     const tabs = [
+      { id: "dashboard", label: "Analytics", adv: true },
+      { id: "history", label: "Historique", adv: true },
       { id: "detail", label: "SODA" },
-      { id: "livraisons", label: "📦 Livraisons" },
-      { id: "rupture", label: "❌ Ruptures" },
-      { id: "low", label: "🟡 Stock 5 à 15" },
-      { id: "critical", label: "🟠 Stock 0 à 5" },
-      { id: "anomalies", label: "⚠️ Anomalies" },
-      { id: "help", label: "Mode d'emploi" }
+      { id: "livraisons", label: "Livraisons" },
+      { id: "low", label: "Stock 5 à 15" },
+      { id: "critical", label: "Stock 0 à 5" },
+      { id: "rupture", label: "Ruptures" },
+      { id: "anomalies", label: "Anomalies" }
     ];
+    const ADV_TABS = new Set(["dashboard", "history"]);
 
     const columns = {
       sku: [
@@ -941,10 +1054,18 @@
       return { type, detail, ID: item.ID, SKU: item.SKU, STATUT: item.STATUT, EMPLACEMENT: item.EMPLACEMENT, __row: item, dismissKey };
     }
 
+    function debounce(fn, ms) {
+      let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+    }
+    let _metricsCache = null;
+    let _distinctCache = null;
+    function invalidateCaches() { _metricsCache = null; _distinctCache = null; }
+
     function computeMetrics() {
+      if (_metricsCache) return _metricsCache;
       const rows = state.rows;
       const skuRows = state.skuRows;
-      return {
+      _metricsCache = {
         physical: rows.filter(isPhysicalStock).length,
         owned: rows.filter(isOwnedStock).length,
         standby: rows.filter(isStandbyStock).length,
@@ -966,6 +1087,7 @@
         installedMonth: rows.filter((r) => r.STATUT === "MAGASIN" && isCurrentMonth(r.__livraisonDate)).length,
         anomalies: state.anomalies.filter(a => !state.dismissedAnomalies.has(a.dismissKey)).length
       };
+      return _metricsCache;
     }
 
     function isCurrentMonth(date) {
@@ -989,13 +1111,13 @@
         ["physical", "Stock physique", m.physical, "blue", () => state.rows.filter(isPhysicalStock), "Tous les articles chez Kube Design"],
         ["owned", "Stock Kube", m.owned, "green", () => state.rows.filter(isOwnedStock)],
         ["standby", "Stock standby", m.standby, "orange", () => state.rows.filter(isStandbyStock)],
-        ["incoming", "📦 Livraisons", m.incoming, "kpi-blue-filled", "livraisons"],
+        ["incoming", "Livraisons", m.incoming, "kpi-blue-filled", "livraisons"],
         ["project", "Réservé projet", m.project, "blue", () => state.rows.filter((r) => r.STATUT === "PROJET" && r.EMPLACEMENT === "KUBE DESIGN")],
         ["hs", "HS", m.hs, "red", () => state.rows.filter((r) => r.STATUT === "HS")],
         ["low", "Stock de 5 à 15", m.low, "kpi-darkorange-filled", "low"],
         ["critical", "Stock de 0 à 5", m.critical, "kpi-orange-filled", "critical"],
         ["rupture", "Ruptures", m.rupture, "kpi-red-filled", "rupture"],
-        ["anomalies", "⚠️ Anomalies", m.anomalies, "red", "anomalies"]
+        ["anomalies", "Anomalies", m.anomalies, "red", "anomalies"]
       ];
       document.getElementById("kpiGrid").innerHTML = kpis.map(([id, label, value, color, , def]) =>
         `<button class="kpi ${color}" type="button" data-kpi="${id}"><strong>${value}</strong><span>${label}</span>${def ? `<span class="kpi-def">${escapeHtml(def)}</span>` : ""}</button>`
@@ -1022,9 +1144,21 @@
     }
 
     function renderTabs() {
-      document.getElementById("tabs").innerHTML = tabs.map((tab) =>
-        `<button class="tab ${tab.id === state.currentTab ? "active" : ""}" type="button" data-tab="${tab.id}">${tab.label}</button>`
-      ).join("");
+      let html = "";
+      let advDividerAdded = false;
+      let opsDividerAdded = false;
+      tabs.forEach((tab) => {
+        if (tab.adv && !advDividerAdded) {
+          html += `<div class="sidebar-section">Analytics</div>`;
+          advDividerAdded = true;
+        }
+        if (!tab.adv && !opsDividerAdded) {
+          html += `<div class="sidebar-section" style="margin-top:6px">Opérationnel</div>`;
+          opsDividerAdded = true;
+        }
+        html += `<button class="tab${tab.id === state.currentTab ? " active" : ""}${tab.adv ? " tab-adv" : ""}" type="button" data-tab="${tab.id}"><span class="tab-label">${tab.label}</span></button>`;
+      });
+      document.getElementById("tabs").innerHTML = html;
       document.querySelectorAll("[data-tab]").forEach((button) => {
         button.addEventListener("click", () => {
           state.currentTab = button.dataset.tab;
@@ -1047,7 +1181,6 @@
         detail: {
           title: "SODA",
           intro: "Toutes les lignes importées depuis SODA, avec SKU, IMEI, SN, statut, emplacement et destination.",
-          charts: "stock",
           tools: "stock"
         },
         technicians: {
@@ -1085,24 +1218,35 @@
           title: "Anomalies",
           intro: "Contrôles automatiques : statuts incohérents, SKU manquants non factices, doublons IMEI/SN et valeurs non reconnues.",
           tools: "anomalies"
-        },
-        help: {
-          title: "Mode d'emploi",
-          intro: "Explication des indicateurs, graphiques, alertes, factices, techniciens et reporting.",
-          tools: "none"
         }
       };
       return configs[tab] || configs.sku;
     }
 
     function renderPageLayout() {
+      const isAdv = ADV_TABS.has(state.currentTab);
+      const isDashboard = state.currentTab === "dashboard";
+      document.getElementById("advancedPages").classList.toggle("hidden", !isAdv);
+      document.getElementById("dropZone").classList.add("hidden");
+      document.getElementById("pageIntro").innerHTML = "";
+      document.querySelector(".panel").classList.toggle("hidden", isAdv);
+      if (isAdv) {
+        document.getElementById("charts").classList.toggle("hidden", !isDashboard);
+        if (isDashboard) {
+          document.querySelectorAll("[data-chart-page]").forEach(box => {
+            box.classList.toggle("hidden", !box.dataset.chartPage.split(" ").includes("stock"));
+          });
+        }
+        renderAdvancedPage(state.currentTab);
+        return;
+      }
       const config = pageConfig(state.currentTab);
       document.getElementById("dropZone").classList.toggle("hidden", !config.showImport);
       document.getElementById("charts").classList.toggle("hidden", !config.charts);
       document.querySelectorAll("[data-chart-page]").forEach((box) => {
         box.classList.toggle("hidden", !config.charts || !box.dataset.chartPage.split(" ").includes(config.charts));
       });
-      document.getElementById("pageIntro").innerHTML = `<strong>${escapeHtml(config.title)}</strong>${escapeHtml(config.intro)}`;
+      document.getElementById("pageIntro").innerHTML = "";
       document.getElementById("tableTitle").textContent = config.title;
     }
 
@@ -1111,12 +1255,12 @@
       if (tab === "livraisons") return { key: "LIVRAISON", dir: "asc" };
       if (tab === "technicians") return { key: "LIVRAISON", dir: "desc" };
       if (tab === "planning") return { key: "week", dir: "asc" };
-      if (tab === "help") return { key: "theme", dir: "asc" };
       if (tab === "rupture" || tab === "low" || tab === "critical") return { key: "canonicalName", dir: "asc" };
       return { key: "__index", dir: "asc" };
     }
 
     function currentRows() {
+      if (ADV_TABS.has(state.currentTab)) return [];
       if (state.currentTab === "sku") return state.skuRows;
       if (state.currentTab === "technicians") return technicianRows();
       if (state.currentTab === "livraisons") return livraisonsRows();
@@ -1129,7 +1273,6 @@
         if (state.anomalyTypeFilter) base = base.filter(a => a.type === state.anomalyTypeFilter);
         return base;
       }
-      if (state.currentTab === "help") return helpRows();
       return state.rows;
     }
 
@@ -1150,29 +1293,6 @@
       return state.rows.filter((r) => r.STATUT === "LIVRAISON");
     }
 
-    function helpRows() {
-      return [
-        { theme: "Charger les données", description: "Au démarrage, l’outil est vide. Glissez votre fichier SODA (Excel ou CSV) dans la zone d’import ou cliquez pour le sélectionner. Les données se chargent immédiatement. Chaque nouvel import remplace les données courantes." },
-        { theme: "Indicateur — Stock physique", description: "Nombre total d’articles présents physiquement chez Kube Design (tous statuts : Stock Kube, Standby, Projet, HS, CDM). Les produits factices et les accessoires sans numéro de série sont exclus." },
-        { theme: "Indicateur — Stock Kube", description: "Produits disponibles immédiatement chez Kube Design, prêts à être expédiés (STATUT = STOCK KUBE, EMPLACEMENT = KUBE DESIGN)." },
-        { theme: "Indicateur — Stock Standby", description: "Produits présents chez Kube Design mais mis en attente, non disponibles à l’expédition." },
-        { theme: "Indicateur — Livraisons", description: "Nombre de lignes STATUT = LIVRAISON dont l’expéditeur n’est PAS KUBE DESIGN (entrées prestataires). Les sorties expédiées par Kube Design vers les magasins ne sont pas comptabilisées dans cet indicateur." },
-        { theme: "Indicateur — Réservé projet", description: "Produits mis de côté pour un projet spécifique, non disponibles pour d’autres commandes." },
-        { theme: "Indicateur — HS", description: "Produits hors service (Grade D), non utilisables pour une mise en rayon." },
-        { theme: "Indicateur — Stock 5 à 15", description: "Nombre de MARKETING_NAME (RDU/LDU uniquement) dont le cumul en STATUT = STOCK KUBE, EMPLACEMENT = KUBE DESIGN est compris entre 5 et 15 unités. Alerte jaune à surveiller." },
-        { theme: "Indicateur — Stock 0 à 5", description: "Nombre de MARKETING_NAME (RDU/LDU uniquement) dont le cumul en STATUT = STOCK KUBE, EMPLACEMENT = KUBE DESIGN est entre 1 et 4 unités, plus les ruptures (0 unité en kube). Alerte rouge critique." },
-        { theme: "Onglet Stock 5 à 15", description: "Tableau par MARKETING_NAME avec le stock disponible (qtyKube). Filtres : recherche texte, RDU ou LDU uniquement, gamme. Bouton Réinitialiser pour effacer tous les filtres." },
-        { theme: "Onglet Stock 0 à 5", description: "Même logique que Stock 5 à 15 pour les produits avec 1 à 4 unités ou en rupture totale. Filtres identiques : texte, RDU/LDU, gamme, réinitialiser." },
-        { theme: "Onglet Ruptures", description: "Produits (RDU/LDU) avec 0 unité en Stock Kube mais présents ailleurs (Standby, Livraison, Magasin, Vol, Projet). Le tableau montre la répartition par statut." },
-        { theme: "Onglet Livraisons", description: "Toutes les lignes STATUT = LIVRAISON. Direction Entrée : expéditeurs prestataires vers Kube Design. Direction Sortie : KUBE DESIGN expédie vers les magasins. Filtres : texte libre, direction (Entrée/Sortie), enseigne, expéditeur, bouton Réinitialiser." },
-        { theme: "Onglet SODA", description: "Vue complète de toutes les lignes du fichier importé. Recherche texte libre, filtres Statut, Emplacement, Alerte, Gamme, bouton Réinitialiser." },
-        { theme: "Onglet Anomalies", description: "L’outil détecte automatiquement : statut incohérent avec l’emplacement, référence SKU manquante, IMEI/SN en double, valeurs non reconnues. À vérifier après chaque import." },
-        { theme: "Produits factices", description: "Marqués FACTICE ou sans IMEI ni SN. Exception : les accessoires (ACC) sans numéro sont de vrais produits." },
-        { theme: "Graphiques", description: "Le graphique « Entrées par expéditeur » affiche uniquement les prestataires (hors KUBE DESIGN). Un clic sur une portion ouvre le détail des produits dans un panneau latéral." },
-        { theme: "Indicateurs cliquables", description: "Tous les chiffres en haut de page sont cliquables : Stock physique, Stock Kube, Standby, Projet et HS ouvrent un panneau détail ; Livraisons, Ruptures et Anomalies ouvrent leur onglet ; Stock 5 à 15 et Stock 0 à 5 ouvrent leur onglet d’alerte." },
-        { theme: "Export AD STOCK KUBE", description: "Génère un fichier Excel (deux feuilles) : TCD = tableau croisé MARKETING_NAME × STATUT (RDU/LDU uniquement) ; BDD = toutes les lignes brutes avec en-tête bleu. Bouton en haut à droite." }
-      ];
-    }
 
 
     function planningRows() {
@@ -1217,13 +1337,9 @@
             const lq = state.livraisonSearch.toUpperCase();
             if (!r.__search || !r.__search.includes(lq)) return false;
           }
+          if (r.EXPEDITEUR === "KUBE DESIGN") return false;  // entrées uniquement
           if (state.livraisonEnseigne && r.ENSEIGNE !== state.livraisonEnseigne) return false;
           if (state.livraisonExpediteur && r.EXPEDITEUR !== state.livraisonExpediteur) return false;
-          if (state.livraisonDirection) {
-            const isKube = r.EXPEDITEUR === "KUBE DESIGN";
-            if (state.livraisonDirection === "Entrée" && isKube) return false;
-            if (state.livraisonDirection === "Sortie" && !isKube) return false;
-          }
         }
         if ((state.currentTab === "low" || state.currentTab === "critical") && state.alertTypeFilter) {
           const t = r.type || "";
@@ -1243,7 +1359,7 @@
       });
     }
 
-    function renderTable() {
+    function renderTable(skipTools) {
       const tab = state.currentTab;
       const config = pageConfig(tab);
       const rows = sortRows(applyFilters(currentRows()));
@@ -1258,7 +1374,7 @@
         th.addEventListener("click", () => {
           const key = th.dataset.key;
           state.sort = { key, dir: state.sort.key === key && state.sort.dir === "asc" ? "desc" : "asc" };
-          renderTable();
+          renderTable(true);
         });
       });
       document.querySelectorAll(".anomaly-dismiss").forEach((cb) => {
@@ -1269,7 +1385,7 @@
         });
       });
       renderPager(state.page, totalPages, rows.length);
-      renderTableTools();
+      if (!skipTools) renderTableTools();
     }
 
     function tableHtml(cols, rows, sortable) {
@@ -1303,11 +1419,17 @@
       const focusedId = document.activeElement ? document.activeElement.id : null;
       const selStart = (focusedId && document.activeElement.selectionStart != null) ? document.activeElement.selectionStart : null;
 
-      const distinctGammes = [...new Set(state.rows.map((r) => r.GAMME).filter(Boolean))].sort();
-      const distinctEnseignes = [...new Set(state.rows.filter((r) => r.STATUT === "LIVRAISON").map((r) => r.ENSEIGNE).filter(Boolean))].sort();
-      const distinctExpediteurs = [...new Set(state.rows.filter((r) => r.STATUT === "LIVRAISON").map((r) => r.EXPEDITEUR).filter(Boolean))].sort();
-      const distinctStatuts = [...new Set(state.rows.map((r) => r.STATUT).filter(Boolean))].sort();
-      const distinctEmplacements = [...new Set(state.rows.map((r) => r.EMPLACEMENT).filter(Boolean))].sort();
+      if (!_distinctCache) {
+        _distinctCache = {
+          gammes:       [...new Set(state.rows.map(r => r.GAMME).filter(Boolean))].sort(),
+          enseignes:    [...new Set(state.rows.filter(r => r.STATUT === "LIVRAISON").map(r => r.ENSEIGNE).filter(Boolean))].sort(),
+          expediteurs:  [...new Set(state.rows.filter(r => r.STATUT === "LIVRAISON").map(r => r.EXPEDITEUR).filter(Boolean))].sort(),
+          statuts:      [...new Set(state.rows.map(r => r.STATUT).filter(Boolean))].sort(),
+          emplacements: [...new Set(state.rows.map(r => r.EMPLACEMENT).filter(Boolean))].sort(),
+          anomalyTypes: [...new Set(state.anomalies.map(a => a.type))].sort()
+        };
+      }
+      const { gammes: distinctGammes, enseignes: distinctEnseignes, expediteurs: distinctExpediteurs, statuts: distinctStatuts, emplacements: distinctEmplacements } = _distinctCache;
 
       const technicianSearch = config.tools === "technicians" ? `
         <input id="techSearch" type="search" placeholder="Rechercher IMEI, SN, technicien, produit" value="${escapeHtml(state.techSearch)}">
@@ -1363,16 +1485,11 @@
 
       const livraisonTools = config.tools === "livraisons" ? (() => {
         const count = state.filteredRows.length;
-        const parts = [state.livraisonDirection, state.livraisonEnseigne, state.livraisonExpediteur, state.gammeFilter].filter(Boolean);
+        const parts = [state.livraisonEnseigne, state.livraisonExpediteur, state.gammeFilter].filter(Boolean);
         const filterLabel = parts.length ? `<span class="badge-filters">— ${escapeHtml(parts.join(" · "))}</span>` : "";
         return `
-          <span class="livraison-badge">📦 <span class="badge-count">${count}</span> livraison${count !== 1 ? "s" : ""} ${filterLabel}</span>
+          <span class="livraison-badge"><span class="badge-count">${count}</span> livraison${count !== 1 ? "s" : ""} ${filterLabel}</span>
           <input id="livraisonSearch" type="search" placeholder="IMEI, SN, produit, magasin…" value="${escapeHtml(state.livraisonSearch)}" style="min-width:220px">
-          <select id="livraisonDirection">
-            <option value="">Entrées + Sorties</option>
-            <option value="Entrée" ${state.livraisonDirection === "Entrée" ? "selected" : ""}>Entrées seulement</option>
-            <option value="Sortie" ${state.livraisonDirection === "Sortie" ? "selected" : ""}>Sorties seulement</option>
-          </select>
           <select id="livraisonEnseigne">
             <option value="">Toutes enseignes</option>
             ${distinctEnseignes.map((e) => `<option value="${escapeHtml(e)}" ${state.livraisonEnseigne === e ? "selected" : ""}>${escapeHtml(e)}</option>`).join("")}
@@ -1393,7 +1510,7 @@
       `;
 
       const anomalyTools = config.tools === "anomalies" ? (() => {
-        const types = [...new Set(state.anomalies.map(a => a.type))].sort();
+        const types = _distinctCache ? _distinctCache.anomalyTypes : [...new Set(state.anomalies.map(a => a.type))].sort();
         const count = state.filteredRows.length;
         const badge = `<span class="livraison-badge"><span class="badge-count">${count}</span> anomalie${count !== 1 ? "s" : ""}</span>`;
         return `
@@ -1434,19 +1551,19 @@
       }
       const techSearch = document.getElementById("techSearch");
       if (techSearch) {
-        techSearch.addEventListener("input", () => {
+        techSearch.addEventListener("input", debounce(() => {
           state.techSearch = techSearch.value;
           state.page = 1;
           renderTable();
-        });
+        }, 200));
       }
       const detailSearch = document.getElementById("detailSearch");
       if (detailSearch) {
-        detailSearch.addEventListener("input", () => {
+        detailSearch.addEventListener("input", debounce(() => {
           state.detailSearch = detailSearch.value;
           state.page = 1;
           renderTable();
-        });
+        }, 200));
       }
       const detailStatut = document.getElementById("detailStatut");
       if (detailStatut) {
@@ -1474,11 +1591,11 @@
       }
       const livraisonSearch = document.getElementById("livraisonSearch");
       if (livraisonSearch) {
-        livraisonSearch.addEventListener("input", () => {
+        livraisonSearch.addEventListener("input", debounce(() => {
           state.livraisonSearch = livraisonSearch.value;
           state.page = 1;
           renderTable();
-        });
+        }, 200));
       }
       const livraisonEnseigne = document.getElementById("livraisonEnseigne");
       if (livraisonEnseigne) {
@@ -1496,21 +1613,13 @@
           renderTable();
         });
       }
-      const livraisonDirection = document.getElementById("livraisonDirection");
-      if (livraisonDirection) {
-        livraisonDirection.addEventListener("change", () => {
-          state.livraisonDirection = livraisonDirection.value;
-          state.page = 1;
-          renderTable();
-        });
-      }
+
       const resetLivraisonFilters = document.getElementById("resetLivraisonFilters");
       if (resetLivraisonFilters) {
         resetLivraisonFilters.addEventListener("click", () => {
           state.livraisonSearch = "";
           state.livraisonEnseigne = "";
           state.livraisonExpediteur = "";
-          state.livraisonDirection = "";
           state.gammeFilter = "";
           state.page = 1;
           renderTable();
@@ -1580,7 +1689,7 @@
       pager.querySelectorAll(".page-btn[data-page]:not([disabled])").forEach(btn => {
         btn.addEventListener("click", () => {
           state.page = parseInt(btn.dataset.page);
-          renderTable();
+          renderTable(true);
           const tw = document.querySelector(".table-wrap"); if (tw) tw.scrollTop = 0;
         });
       });
@@ -1613,9 +1722,20 @@
 
     function makeChart(id, type, entries, sourceRows = [], filterKey = null, title = "Graphique") {
       const canvas = document.getElementById(id);
-      if (state.charts[id]) state.charts[id].destroy();
       const labels = entries.map(([label]) => label);
       const values = entries.map(([, value]) => value);
+      if (state.charts[id]) {
+        const c = state.charts[id];
+        c.data.labels = labels;
+        c.data.datasets[0].data = values;
+        c.options.onClick = (event, elements) => {
+          if (!elements.length || !filterKey) return;
+          const label = labels[elements[0].index];
+          openDrawer(`${title} - ${label}`, sourceRows.filter(r => (r[filterKey] || "Non renseigné") === label));
+        };
+        c.update("none");
+        return;
+      }
       state.charts[id] = new Chart(canvas, {
         type,
         data: {
@@ -1671,10 +1791,12 @@
       state.dismissedAnomalies = new Set();
       state.fileName = fileName;
       state.importedAt = importedAt;
-      state.currentTab = options.keepTab ? state.currentTab : "detail";
+      state.currentTab = options.keepTab ? state.currentTab : "dashboard";
       state.page = 1;
       state.sort = defaultSortForTab(state.currentTab);
       document.getElementById("fileMeta").textContent = `${fileName} - ${state.rows.length} lignes - import ${state.importedAt.toLocaleString("fr-FR")}`;
+      invalidateCaches();
+      snapshotMetrics();
       renderAll();
     }
 
@@ -1686,11 +1808,14 @@
     }
 
     function renderAll() {
+      const isAdv = ADV_TABS.has(state.currentTab);
+      const isDashboard = state.currentTab === "dashboard";
+      document.getElementById("kpiGrid").classList.toggle("hidden", !isDashboard);
       renderKpis();
       renderTabs();
       renderPageLayout();
-      renderCharts();
-      renderTable();
+      if (!isAdv) { renderCharts(); renderTable(); }
+      else if (isDashboard) { renderCharts(); }
     }
 
     function showLoading() {
@@ -1700,6 +1825,158 @@
     function showDrawerLoading() {
       document.getElementById("drawerTable").innerHTML = `<tr><td colspan="20" style="text-align:center;padding:2.5rem"><span style="display:inline-block;background:#b8d8f0;color:#1a3f5c;border:1.5px solid #5a9ec9;border-radius:8px;padding:.6rem 1.6rem;font-weight:600;font-size:.95rem"><span class="ld">En chargement</span><span class="ld">.</span><span class="ld">.</span><span class="ld">.</span></span></td></tr>`;
     }
+
+    // ===== ANALYTICS PAGES =====
+    let importHistory = [];
+
+    function snapshotMetrics() {
+      const m = computeMetrics();
+      importHistory.push({
+        date: state.importedAt,
+        fileName: state.fileName,
+        stockKube: m.available,
+        standby: m.standby,
+        livraisons: m.incoming,
+        projet: m.project,
+        hs: m.hs,
+        low: m.low,
+        critical: m.critical,
+      });
+      if (importHistory.length > 30) importHistory.shift();
+    }
+
+    function countByField(rows, field) {
+      const map = {};
+      rows.forEach(r => { const v = r[field] || "—"; map[v] = (map[v] || 0) + 1; });
+      return Object.entries(map).sort((a, b) => b[1] - a[1]);
+    }
+
+    function deltaHtml(val, prev) {
+      if (prev == null) return "";
+      const d = val - prev;
+      if (d > 0) return ` <span class="delta-up">▲${d}</span>`;
+      if (d < 0) return ` <span class="delta-down">▼${Math.abs(d)}</span>`;
+      return ` <span class="delta-flat">—</span>`;
+    }
+
+
+
+    function renderAdvancedPage(tab) {
+      const el = document.getElementById("advancedPages");
+      if (tab === "dashboard") el.innerHTML = renderDashboard();
+      else if (tab === "history") {
+        el.innerHTML = renderHistoryPage();
+        // [SUPABASE] Charger l'historique KPI si connecté et pas encore en cache
+        if (SB.client && state.sbKpiHistory === null) {
+          SB.fetchKpis().then(rows => {
+            state.sbKpiHistory = rows || [];
+            if (state.currentTab === "history") {
+              document.getElementById("advancedPages").innerHTML = renderHistoryPage();
+              initAdvancedPageEvents();
+            }
+          });
+        }
+      }
+      initAdvancedPageEvents();
+    }
+
+    function initAdvancedPageEvents() {
+      document.getElementById("advancedPages").querySelectorAll("[data-adv-action]").forEach(el => {
+        el.addEventListener("click", function() {
+          handleAdvAction(this.dataset.advAction, this.dataset.advFilter);
+        });
+      });
+    }
+
+    function handleAdvAction(action, filter) {
+      if (action === "tab") {
+        state.currentTab = filter;
+        state.page = 1;
+        state.sort = defaultSortForTab(filter);
+        showLoading();
+        setTimeout(() => renderAll(), 0);
+      } else if (action === "drawer") {
+        const rows = getAdvDrillRows(filter);
+        if (!rows) return;
+        showDrawerLoading();
+        document.getElementById("drawerTitle").textContent = filter;
+        document.getElementById("drawerMeta").textContent = `${rows.length} ligne(s)`;
+        document.getElementById("drawerBackdrop").classList.add("open");
+        document.getElementById("drawer").classList.add("open");
+        document.getElementById("drawer").setAttribute("aria-hidden", "false");
+        setTimeout(() => openDrawer(filter, rows), 0);
+      }
+    }
+
+    function getAdvDrillRows(filter) {
+      if (filter === "Stock Kube") return state.rows.filter(r => r.STATUT === "STOCK KUBE" && r.EMPLACEMENT === "KUBE DESIGN");
+      if (filter === "Standby") return state.rows.filter(r => r.STATUT === "STANDBY");
+      if (filter === "Stock physique") return state.rows.filter(isPhysicalStock);
+      if (filter === "Réservé projet") return state.rows.filter(r => r.STATUT === "PROJET" && r.EMPLACEMENT === "KUBE DESIGN");
+      if (filter === "HS") return state.rows.filter(r => r.STATUT === "HS");
+      if (filter === "Sorties magasin") return state.rows.filter(r => r.STATUT === "LIVRAISON" && r.EXPEDITEUR === "KUBE DESIGN");
+      return null;
+    }
+
+    function renderDashboard() {
+      const gammes = countByField(state.rows.filter(r => r.STATUT === "STOCK KUBE" && r.EMPLACEMENT === "KUBE DESIGN"), "GAMME");
+      const skuAlert = state.skuRows.filter(r => r.alert === "critical" || r.alert === "rupture");
+      const gammeRows = gammes.slice(0, 15).map(([g, n]) =>
+        `<tr class="clickable-row" data-adv-action="drawer" data-adv-filter="Stock Kube"><td>${escapeHtml(g)}</td><td><strong>${n}</strong></td><td style="color:var(--muted);font-size:11px">${gammes.length > 0 && state.rows.filter(r => r.STATUT === "STOCK KUBE" && r.EMPLACEMENT === "KUBE DESIGN").length > 0 ? ((n / state.rows.filter(r => r.STATUT === "STOCK KUBE" && r.EMPLACEMENT === "KUBE DESIGN").length) * 100).toFixed(1) + "%" : "—"}</td></tr>`
+      ).join("");
+      return `
+        <div class="adv-section-title">Répartition du stock Kube par gamme</div>
+        <div class="adv-card adv-clickable" data-adv-action="drawer" data-adv-filter="Stock Kube" style="margin-bottom:14px">
+          ${gammes.length ? `<table class="adv-table"><thead><tr><th>Gamme</th><th>Unités</th><th>%</th></tr></thead><tbody>${gammeRows}</tbody></table>` : `<div class="history-empty">Aucune donnée — importez un fichier SODA</div>`}
+          <div class="adv-drill-hint">Cliquer pour voir toutes les lignes Stock Kube</div>
+        </div>
+        ${skuAlert.length ? `
+        <div class="adv-section-title">Produits en tension — action requise</div>
+        <div class="adv-card adv-clickable" data-adv-action="tab" data-adv-filter="rupture">
+          <table class="adv-table">
+            <thead><tr><th>Produit</th><th>Gamme</th><th>Stock Kube</th><th>Alerte</th></tr></thead>
+            <tbody>${skuAlert.slice(0,15).map(r=>`<tr><td>${escapeHtml(r.canonicalName||"")}</td><td>${escapeHtml(r.gamme||"")}</td><td><strong>${r.qtyKube}</strong></td><td>${escapeHtml(r.alertLabel||"")}</td></tr>`).join("")}</tbody>
+          </table>
+          <div class="adv-drill-hint">Cliquer pour ouvrir l'onglet Ruptures</div>
+        </div>` : `<div class="adv-card" style="text-align:center;color:var(--green);padding:20px;font-weight:600">Aucun produit en tension</div>`}
+      `;
+    }
+
+    function renderHistoryPage() {
+      // [SUPABASE] Priorité : state.sbKpiHistory (données multi-machines)
+      // Fallback : importHistory (session locale uniquement)
+      const sbRows = state.sbKpiHistory;
+      if (sbRows === null && SB.client) {
+        // En cours de chargement — déclenché par renderAdvancedPage
+        return `<div class="history-empty" id="histPageLoading">Chargement de l'historique Supabase…</div>`;
+      }
+      const source = sbRows && sbRows.length ? sbRows : importHistory;
+      const isCloud = !!(sbRows && sbRows.length);
+      if (!source.length) {
+        return `<div class="history-empty">Aucun import enregistré.${SB.client ? "" : " Connectez Supabase pour partager l'historique entre machines."}</div>`;
+      }
+      const rows = isCloud ? source : [...source].reverse();
+      return `
+        <div class="adv-section-title">Historique des imports ${isCloud ? `<span style="font-size:11px;color:var(--green);font-weight:600;margin-left:8px">● Supabase — partagé entre machines</span>` : `<span style="font-size:11px;color:var(--muted);font-weight:400;margin-left:8px">(session locale)</span>`}</div>
+        <div class="adv-card">
+          <table class="adv-table">
+            <thead><tr><th>Date</th><th>Fichier</th><th>Stock Kube</th><th>Standby</th><th>Entrées</th><th>HS</th><th>Alertes crit.</th>${isCloud ? "<th>Taux dispo</th>" : ""}</tr></thead>
+            <tbody>${rows.map(r => `<tr>
+              <td>${r.date ? (r.date instanceof Date ? r.date.toLocaleDateString("fr-FR") : new Date(r.date).toLocaleDateString("fr-FR")) : "—"}</td>
+              <td>${escapeHtml(r.fileName || "")}</td>
+              <td><strong>${r.stockKube ?? "—"}</strong></td>
+              <td>${r.standby ?? "—"}</td>
+              <td>${r.livraisons ?? "—"}</td>
+              <td>${r.hs ?? "—"}</td>
+              <td style="color:${(r.critical ?? 0) > 0 ? "var(--red)" : "inherit"}">${r.critical ?? "—"}</td>
+              ${isCloud ? `<td>${r.tauxDispo != null ? r.tauxDispo + "%" : "—"}</td>` : ""}
+            </tr>`).join("")}</tbody>
+          </table>
+        </div>
+      `;
+    }
+
+
 
     // ===== HISTORIQUE D'IMPORTS (IndexedDB) =====
     let _db = null;
@@ -1815,34 +2092,62 @@
 
     async function refreshHistList() {
       const body = document.getElementById("histBody");
+      body.innerHTML = `<div class="empty">Chargement…</div>`;
+
+      // [SUPABASE] Si connecté : afficher les imports cloud (partagés)
+      // [IndexedDB] Fallback local avec boutons Charger/Supprimer
       const cur = _db ? await idbGet("current_dataset", "current") : null;
-      const entries = await listImports();
-      if (!entries.length) {
+      const localEntries = await listImports();
+
+      let sbEntries = null;
+      if (SB.client) {
+        sbEntries = await SB.fetchImports();
+        state.sbImports = sbEntries;
+      }
+
+      // Section Supabase (lecture seule — données partagées)
+      let html = "";
+      if (sbEntries && sbEntries.length) {
+        html += `<div style="font-size:11px;font-weight:700;color:var(--green);margin-bottom:6px;padding:4px 0">● Imports Supabase — partagés entre machines</div>`;
+        html += sbEntries.map(e => {
+          const d = new Date(e.imported_at);
+          const dateStr = d.toLocaleDateString("fr-FR") + " à " + d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+          return `<div class="hist-entry" style="opacity:0.85">
+            <div>
+              <div class="hist-fname">${escapeHtml(e.file_name)}</div>
+              <div class="hist-meta">${dateStr} — ${e.row_count} lignes</div>
+            </div>
+            <span style="font-size:11px;color:var(--muted);padding:4px 8px">Cloud</span>
+          </div>`;
+        }).join("");
+      }
+
+      // Section IndexedDB (données locales, rechargeables)
+      if (localEntries.length) {
+        html += `<div style="font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 6px;padding:4px 0;border-top:1px solid var(--border)">Imports locaux (cet appareil)</div>`;
+        html += localEntries.map(e => {
+          const active = cur && cur.importId === e.id;
+          return `<div class="hist-entry">
+            <div>
+              <div class="hist-fname">${escapeHtml(e.fileName)}${active ? ' <span style="color:var(--green);font-size:11px;font-weight:700">● actif</span>' : ""}</div>
+              <div class="hist-meta">${escapeHtml(e.date)} à ${escapeHtml(e.heure)} — ${e.dataset ? e.dataset.length : "?"} lignes</div>
+            </div>
+            <button type="button" class="primary" data-load="${escapeHtml(e.id)}">Charger</button>
+            <button type="button" data-del="${escapeHtml(e.id)}">Supprimer</button>
+          </div>`;
+        }).join("");
+      }
+
+      if (!html) {
         body.innerHTML = `<div class="empty">Aucun import enregistré</div>`;
         return;
       }
-      body.innerHTML = entries.map(e => {
-        const active = cur && cur.importId === e.id;
-        return `<div class="hist-entry">
-          <div>
-            <div class="hist-fname">${escapeHtml(e.fileName)}${active ? ' <span style="color:var(--green);font-size:11px;font-weight:700">● actif</span>' : ""}</div>
-            <div class="hist-meta">${escapeHtml(e.date)} à ${escapeHtml(e.heure)} — ${e.dataset ? e.dataset.length : "?"} lignes</div>
-          </div>
-          <button type="button" class="primary" data-load="${escapeHtml(e.id)}">Charger</button>
-          <button type="button" data-del="${escapeHtml(e.id)}">Supprimer</button>
-        </div>`;
-      }).join("");
+      body.innerHTML = html;
       body.querySelectorAll("[data-load]").forEach(btn => {
-        btn.addEventListener("click", async () => {
-          await loadImportById(btn.dataset.load);
-          closeHistModal();
-        });
+        btn.addEventListener("click", async () => { await loadImportById(btn.dataset.load); closeHistModal(); });
       });
       body.querySelectorAll("[data-del]").forEach(btn => {
-        btn.addEventListener("click", async () => {
-          await deleteImport(btn.dataset.del);
-          await refreshHistList();
-        });
+        btn.addEventListener("click", async () => { await deleteImport(btn.dataset.del); await refreshHistList(); });
       });
     }
     // ===== FIN HISTORIQUE =====
@@ -1857,7 +2162,15 @@
         const rows = XLSX.utils.sheet_to_json(sheet, { defval: null, raw: true })
           .filter(r => Object.values(r).some(v => v !== null && v !== "" && v !== undefined));
         loadRows(rows, file.name);
+        // [PERSISTENCE: IndexedDB — stockage local offline-first]
         await saveImport(rows, file.name);
+        // [SUPABASE: push métadonnées + KPI → partage entre machines]
+        if (SB.client) {
+          const m = computeMetrics();
+          await SB.saveImport(rows, file.name, m);
+          state.sbKpiHistory = null;   // invalider le cache KPI
+          state.sbImports = null;
+        }
       };
       reader.readAsArrayBuffer(file);
     }
@@ -2229,6 +2542,409 @@
       document.getElementById("fileMeta").textContent = "Aucune donnée — importez un fichier";
       renderAll();
     });
+
+    // ===================================================================
+    // ARCHITECTURE SUPABASE — DONNÉES CENTRALISÉES
+    // ===================================================================
+    // POUR DÉPLOYER :
+    //   1. Créer un projet sur https://supabase.com
+    //   2. Exécuter supabase-schema.sql dans l'éditeur SQL Supabase
+    //   3. Coller l'URL + Anon Key dans le panneau ⚙ Supabase (en haut)
+    //      OU hardcoder les constantes ci-dessous pour un déploiement fixe :
+    //        VITE_SUPABASE_URL      → const SUPABASE_URL_FIXED
+    //        VITE_SUPABASE_ANON_KEY → const SUPABASE_KEY_FIXED
+    // ===================================================================
+
+    // [ENV] Variables d'environnement — à remplacer pour déploiement fixe
+    const SUPABASE_URL_FIXED = "";   // ex: "https://xxxx.supabase.co"
+    const SUPABASE_KEY_FIXED = "";   // ex: "eyJhbGciOiJIUzI1NiJ9..."
+
+    // -------------------------------------------------------------------
+    // [SERVICE: cache/apiCache] — Cache API avec TTL 60s
+    // -------------------------------------------------------------------
+    const _apiCache = {
+      _data: {},
+      _ts: {},
+      TTL: 60000,
+      get(key) { return (Date.now() - (this._ts[key] || 0) < this.TTL) ? this._data[key] : null; },
+      set(key, val) { this._data[key] = val; this._ts[key] = Date.now(); },
+      invalidate(key) { this._ts[key] = 0; },
+      invalidateAll() { this._ts = {}; }
+    };
+
+    // -------------------------------------------------------------------
+    // [SERVICE: api/retry] — Retry avec backoff exponentiel
+    // -------------------------------------------------------------------
+    async function withRetry(fn, maxAttempts = 3, delayMs = 600) {
+      for (let i = 0; i < maxAttempts; i++) {
+        try { return await fn(); }
+        catch (e) {
+          if (i === maxAttempts - 1) throw e;
+          await new Promise(r => setTimeout(r, delayMs * Math.pow(2, i)));
+        }
+      }
+    }
+
+    // -------------------------------------------------------------------
+    // [SERVICE: supabase/client] — Objet SB principal
+    // Tables utilisées : imports, kpi_snapshots, soda_rows
+    // Vues utilisées   : v_kpi_history, v_stock_tension
+    // Fonction RPC     : insert_import_with_kpis
+    // -------------------------------------------------------------------
+    const SB = {
+      client: null,
+      cfg: null,
+
+      // [PERSISTENCE: localStorage] Stockage des clés de connexion uniquement
+      // Les données métier ne transitent JAMAIS par localStorage
+      load() {
+        if (SUPABASE_URL_FIXED && SUPABASE_KEY_FIXED) {
+          this.cfg = { url: SUPABASE_URL_FIXED, key: SUPABASE_KEY_FIXED };
+          return true;
+        }
+        const raw = localStorage.getItem("sb_config");
+        this.cfg = raw ? JSON.parse(raw) : null;
+        return !!(this.cfg && this.cfg.url && this.cfg.key);
+      },
+
+      async connect(url, key) {
+        updateSyncIndicator("connecting");
+        return new Promise((resolve) => {
+          if (window.supabase) { this._createClient(url, key, resolve); return; }
+          const s = document.createElement("script");
+          s.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js";
+          s.onload = () => this._createClient(url, key, resolve);
+          s.onerror = () => { updateSyncIndicator("error"); resolve(false); };
+          document.head.appendChild(s);
+        });
+      },
+
+      _createClient(url, key, resolve) {
+        try {
+          this.client = window.supabase.createClient(url, key);
+          this.cfg = { url, key };
+          if (!SUPABASE_URL_FIXED) localStorage.setItem("sb_config", JSON.stringify(this.cfg));
+          updateSyncIndicator("synced");
+          resolve(true);
+        } catch (e) { updateSyncIndicator("error"); resolve(false); }
+      },
+
+      disconnect() {
+        this.client = null; this.cfg = null;
+        localStorage.removeItem("sb_config");
+        _apiCache.invalidateAll();
+        state.sbKpiHistory = null; state.sbImports = null;
+        updateSyncIndicator("offline");
+      },
+
+      // ---------------------------------------------------------------
+      // [TABLE: imports] [TABLE: kpi_snapshots]
+      // RPC: insert_import_with_kpis — transaction atomique
+      // Appelé automatiquement après chaque import Excel
+      // ---------------------------------------------------------------
+      async saveImport(dataset, fileName, metrics) {
+        if (!this.client) return null;
+        try {
+          const { data: importId, error } = await withRetry(() =>
+            this.client.rpc("insert_import_with_kpis", {
+              p_file_name:      fileName,
+              p_row_count:      dataset.length,
+              p_stock_physique: metrics.physical,
+              p_stock_kube:     metrics.available,
+              p_standby:        metrics.standby,
+              p_livraisons:     metrics.incoming,
+              p_sorties:        state.rows.filter(r => r.STATUT === "LIVRAISON" && r.EXPEDITEUR === "KUBE DESIGN").length,
+              p_projet:         metrics.project,
+              p_hs:             metrics.hs,
+              p_alert_low:      metrics.low,
+              p_alert_critical: metrics.critical,
+              p_alert_rupture:  metrics.rupture,
+              p_anomalies:      metrics.anomalies
+            })
+          );
+          if (error) throw error;
+          _apiCache.invalidate("imports"); _apiCache.invalidate("kpis");
+          console.info("[Supabase] Import enregistré:", importId);
+          return importId;
+        } catch (e) { console.warn("[Supabase] saveImport:", e.message); return null; }
+      },
+
+      // ---------------------------------------------------------------
+      // [TABLE: soda_rows]
+      // Upload des lignes brutes par batch de 500
+      // Optionnel — déclenché via "Sync lignes" dans le panneau
+      // Nécessaire pour accéder aux données brutes depuis un autre PC
+      // ---------------------------------------------------------------
+      async uploadRows(importId, dataset, onProgress) {
+        if (!this.client || !importId) return false;
+        const BATCH = 500;
+        try {
+          for (let i = 0; i < dataset.length; i += BATCH) {
+            const batch = dataset.slice(i, i + BATCH).map(r => ({
+              import_id:      importId,
+              type:           r.TYPE ?? null,
+              marketing_name: r.MARKETING_NAME ?? null,
+              sku:            r.SKU ?? null,
+              statut:         r.STATUT ?? null,
+              emplacement:    r.EMPLACEMENT ?? null,
+              expediteur:     r.EXPEDITEUR ?? null,
+              enseigne:       r.ENSEIGNE ?? null,
+              magasin:        r.MAGASIN ?? null,
+              mobilier:       r.MOBILIER ?? null,
+              livraison:      r.LIVRAISON ?? null,
+              imei:           r.IMEI ?? null,
+              sn:             r.SN ?? null,
+              planning:       r.PLANNING ?? null,
+              commentaire:    r.COMMENTAIRE ?? null,
+              gamme:          r.GAMME ?? null
+            }));
+            const { error } = await this.client.from("soda_rows").insert(batch);
+            if (error) throw error;
+            if (onProgress) onProgress(Math.min(i + BATCH, dataset.length), dataset.length);
+          }
+          return true;
+        } catch (e) { console.warn("[Supabase] uploadRows:", e.message); return false; }
+      },
+
+      // ---------------------------------------------------------------
+      // [TABLE: imports] — Liste des imports pour le modal historique
+      // Partagée entre tous les appareils connectés à ce projet Supabase
+      // ---------------------------------------------------------------
+      async fetchImports() {
+        if (!this.client) return null;
+        const cached = _apiCache.get("imports");
+        if (cached) return cached;
+        try {
+          const { data, error } = await withRetry(() =>
+            this.client.from("imports")
+              .select("id, file_name, imported_at, row_count")
+              .order("imported_at", { ascending: false })
+              .limit(50)
+          );
+          if (error) throw error;
+          _apiCache.set("imports", data);
+          return data;
+        } catch (e) { console.warn("[Supabase] fetchImports:", e.message); return null; }
+      },
+
+      // ---------------------------------------------------------------
+      // [VIEW: v_kpi_history] — Historique KPI pour l'onglet Historique
+      // Contient tous les imports de tous les appareils
+      // ---------------------------------------------------------------
+      async fetchKpis() {
+        if (!this.client) return null;
+        const cached = _apiCache.get("kpis");
+        if (cached) return cached;
+        try {
+          const { data, error } = await withRetry(() =>
+            this.client.from("v_kpi_history")
+              .select("snapshot_at,file_name,stock_kube,standby,livraisons,hs,alert_critical,alert_low,alert_rupture,taux_dispo")
+              .limit(30)
+          );
+          if (error) throw error;
+          // Mapper vers le format de importHistory (compatibilité renderHistoryPage)
+          const mapped = data.map(r => ({
+            date:       new Date(r.snapshot_at),
+            fileName:   r.file_name,
+            stockKube:  r.stock_kube,
+            standby:    r.standby,
+            livraisons: r.livraisons,
+            hs:         r.hs,
+            critical:   r.alert_critical,
+            low:        r.alert_low,
+            rupture:    r.alert_rupture,
+            tauxDispo:  r.taux_dispo
+          }));
+          _apiCache.set("kpis", mapped);
+          return mapped;
+        } catch (e) { console.warn("[Supabase] fetchKpis:", e.message); return null; }
+      },
+
+      // ---------------------------------------------------------------
+      // [VIEW: v_stock_tension] — Produits en tension (dernier import)
+      // ---------------------------------------------------------------
+      async fetchAnalytics() {
+        if (!this.client) return null;
+        try {
+          const { data, error } = await this.client.from("v_stock_tension").select("*");
+          if (error) throw error;
+          return data;
+        } catch (e) { console.warn("[Supabase] fetchAnalytics:", e.message); return null; }
+      },
+
+      // ---------------------------------------------------------------
+      // Migration : IndexedDB → Supabase
+      // Envoie tous les imports locaux vers Supabase
+      // Utile pour "rattraper" les imports faits avant la connexion
+      // ---------------------------------------------------------------
+      async syncHistory(onProgress) {
+        if (!this.client) return { ok: 0, fail: 0 };
+        const localEntries = await listImports();
+        if (!localEntries.length) return { ok: 0, fail: 0 };
+        let ok = 0, fail = 0;
+        for (const entry of localEntries) {
+          if (!entry.dataset) { fail++; continue; }
+          try {
+            const rows = normalizeRows(entry.dataset);
+            const skuRows = buildSkuRows(rows);
+            enrichRowsWithAlerts(rows, skuRows);
+            const anomalies = detectAnomalies(rows);
+            const m = _computeMetricsStatic({ rows, skuRows, anomalies });
+            const id = await this.saveImport(entry.dataset, entry.fileName, m);
+            if (id) ok++; else fail++;
+          } catch (e) { fail++; }
+          if (onProgress) onProgress(ok + fail, localEntries.length);
+        }
+        _apiCache.invalidateAll();
+        state.sbKpiHistory = null; state.sbImports = null;
+        return { ok, fail };
+      }
+    };
+
+    // Calcule les métriques sans toucher au state global (pour syncHistory)
+    function _computeMetricsStatic(s) {
+      const rows = s.rows, skuRows = s.skuRows, anomalies = s.anomalies;
+      return {
+        physical: rows.filter(isPhysicalStock).length,
+        owned: rows.filter(isOwnedStock).length,
+        standby: rows.filter(isStandbyStock).length,
+        available: rows.filter(isAvailable).length,
+        low: skuRows.filter(r => r.alert === "low" && r.names && r.names.size > 0 && !r.isFactice).length,
+        critical: skuRows.filter(r => r.alert === "critical").length,
+        rupture: skuRows.filter(r => r.alert === "rupture").length,
+        project: rows.filter(r => r.STATUT === "PROJET" && r.EMPLACEMENT === "KUBE DESIGN").length,
+        hs: rows.filter(r => r.STATUT === "HS").length,
+        incoming: rows.filter(r => r.STATUT === "LIVRAISON" && r.EXPEDITEUR !== "KUBE DESIGN").length,
+        anomalies: anomalies.length
+      };
+    }
+
+    // -------------------------------------------------------------------
+    // [UI] Indicateur de synchronisation dans le header
+    // -------------------------------------------------------------------
+    function updateSyncIndicator(state_) {
+      const el = document.getElementById("syncIndicator");
+      if (!el) return;
+      const map = {
+        offline:    { text: "Non connecté", color: "#8a9bb0" },
+        connecting: { text: "Connexion…",   color: "#d98200" },
+        synced:     { text: "Supabase sync", color: "#2e7d32" },
+        error:      { text: "Erreur sync",   color: "#c62828" },
+        uploading:  { text: "Upload…",       color: "#0b5cab" }
+      };
+      const s = map[state_] || map.offline;
+      el.textContent = "● " + s.text;
+      el.style.color = s.color;
+    }
+
+    // -------------------------------------------------------------------
+    // [UI] Panneau de configuration Supabase
+    // -------------------------------------------------------------------
+    (function initSbPanel() {
+      // Indicateur dans le header
+      const indicator = document.createElement("span");
+      indicator.id = "syncIndicator";
+      indicator.style.cssText = "font-size:11px;margin-right:8px;font-weight:600;cursor:pointer;";
+      indicator.title = "Statut synchronisation Supabase";
+      updateSyncIndicator("offline");
+
+      const btn = document.createElement("button");
+      btn.type = "button"; btn.id = "sbConfigBtn";
+      btn.textContent = "⚙ Supabase";
+      btn.title = "Configurer la synchronisation Supabase";
+      btn.style.cssText = "font-size:11px;padding:4px 8px;opacity:0.7;";
+
+      const brandRow = document.querySelector(".brand-row > div:last-child");
+      if (brandRow) { brandRow.appendChild(indicator); brandRow.appendChild(btn); }
+
+      const panel = document.createElement("div");
+      panel.id = "sbPanel";
+      panel.style.cssText = "display:none;position:fixed;bottom:16px;right:16px;width:340px;background:#fff;border:1px solid #d9e0e7;border-radius:10px;padding:18px;box-shadow:0 8px 32px rgba(0,0,0,0.14);z-index:1000;font-size:13px;";
+      panel.innerHTML = `
+        <div style="font-weight:700;margin-bottom:4px;color:#17202a">Synchronisation Supabase</div>
+        <div style="font-size:11px;color:#667385;margin-bottom:12px">Partagez les imports entre tous vos appareils</div>
+        <div style="margin-bottom:8px">
+          <label style="font-size:11px;color:#667385">Project URL</label>
+          <input id="sbUrl" type="text" placeholder="https://xxxx.supabase.co" style="width:100%;margin-top:3px;padding:6px 8px;border:1px solid #d9e0e7;border-radius:6px;font-size:12px;box-sizing:border-box">
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="font-size:11px;color:#667385">Anon Key</label>
+          <input id="sbKey" type="password" placeholder="eyJhbGciOiJIUzI1NiJ9..." style="width:100%;margin-top:3px;padding:6px 8px;border:1px solid #d9e0e7;border-radius:6px;font-size:12px;box-sizing:border-box">
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <button id="sbConnect" type="button" style="flex:1;background:#0b5cab;color:#fff;border:0;border-radius:6px;padding:7px;cursor:pointer;font-size:12px">Connecter</button>
+          <button id="sbDisconnect" type="button" style="flex:1;background:#f4f6f8;border:1px solid #d9e0e7;border-radius:6px;padding:7px;cursor:pointer;font-size:12px">Déconnecter</button>
+          <button id="sbClose" type="button" style="background:#f4f6f8;border:1px solid #d9e0e7;border-radius:6px;padding:7px 10px;cursor:pointer;font-size:12px">✕</button>
+        </div>
+        <div id="sbStatus" style="font-size:11px;color:#667385;margin-bottom:8px"></div>
+        <div style="border-top:1px solid #e8edf2;padding-top:10px;display:flex;gap:8px;align-items:center">
+          <button id="sbMigrate" type="button" style="font-size:11px;background:#f4f6f8;border:1px solid #d9e0e7;border-radius:6px;padding:5px 10px;cursor:pointer" title="Envoyer les imports locaux (IndexedDB) vers Supabase">Migrer imports locaux →</button>
+          <span id="sbMigrateStatus" style="font-size:11px;color:#667385"></span>
+        </div>
+        <div style="margin-top:8px;font-size:10px;color:#aaa">Schéma SQL : supabase-schema.sql</div>
+      `;
+      document.body.appendChild(panel);
+
+      const setStatus = (msg, ok) => {
+        const el = document.getElementById("sbStatus");
+        if (el) { el.textContent = msg; el.style.color = ok ? "#2e7d32" : ok === false ? "#c62828" : "#667385"; }
+      };
+
+      btn.addEventListener("click", () => {
+        panel.style.display = panel.style.display === "none" ? "block" : "none";
+        if (SB.cfg) document.getElementById("sbUrl").value = SB.cfg.url || "";
+        if (SB.client) setStatus("Connecté — imports synchronisés automatiquement", true);
+      });
+      indicator.addEventListener("click", () => btn.click());
+      document.getElementById("sbClose").addEventListener("click", () => { panel.style.display = "none"; });
+
+      document.getElementById("sbConnect").addEventListener("click", async () => {
+        const url = document.getElementById("sbUrl").value.trim();
+        const key = document.getElementById("sbKey").value.trim();
+        if (!url || !key) { setStatus("URL et clé requis", false); return; }
+        setStatus("Connexion en cours…", null);
+        const ok = await SB.connect(url, key);
+        setStatus(ok ? "Connecté — imports synchronisés automatiquement" : "Échec — vérifiez l'URL et la clé", ok);
+        if (ok) {
+          btn.style.opacity = "1";
+          state.sbKpiHistory = null; state.sbImports = null;
+        }
+      });
+
+      document.getElementById("sbDisconnect").addEventListener("click", () => {
+        SB.disconnect();
+        setStatus("Déconnecté", false);
+        btn.style.opacity = "0.7";
+        document.getElementById("sbUrl").value = "";
+        document.getElementById("sbKey").value = "";
+      });
+
+      // Migration IndexedDB → Supabase
+      document.getElementById("sbMigrate").addEventListener("click", async () => {
+        if (!SB.client) { setStatus("Connectez-vous d'abord à Supabase", false); return; }
+        const ms = document.getElementById("sbMigrateStatus");
+        ms.textContent = "Migration en cours…";
+        const { ok, fail } = await SB.syncHistory((done, total) => {
+          ms.textContent = `${done}/${total} importés…`;
+        });
+        ms.textContent = `${ok} migrés${fail ? `, ${fail} erreurs` : ""}`;
+        if (ok > 0 && state.currentTab === "history") {
+          state.sbKpiHistory = null;
+          renderAdvancedPage("history");
+        }
+      });
+
+      // Restaurer la connexion existante au démarrage
+      if (SB.load()) {
+        SB.connect(SB.cfg.url, SB.cfg.key).then(ok => {
+          if (ok) {
+            btn.style.opacity = "1";
+            // Pré-charger l'historique KPI en arrière-plan
+            SB.fetchKpis().then(rows => { state.sbKpiHistory = rows || []; });
+          }
+        });
+      }
+    })();
   </script>
 </body>
 </html>
