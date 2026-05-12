@@ -3076,6 +3076,76 @@
     }
 
     // -------------------------------------------------------------------
+    // AUTO-LOAD — Charger automatiquement le dernier import au démarrage
+    // Toujours prioritaire sur IndexedDB pour la sync multi-PC
+    // -------------------------------------------------------------------
+    async function autoLoadLastImport() {
+      if (!SB.client) return;
+      console.log("[AUTO LOAD START] Recherche du dernier import Supabase Storage…");
+
+      try {
+        // 1. Chercher l'import avec is_last_opened = true
+        let imp = await SB.fetchLastOpened();
+
+        // 2. Fallback : import le plus récent ayant un fichier archivé
+        if (!imp?.file_path) {
+          const { data } = await SB.client.from("imports")
+            .select("id,file_name,original_filename,file_url,file_path,imported_at")
+            .not("file_path", "is", null)
+            .order("imported_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (data?.file_path) imp = data;
+        }
+
+        if (!imp?.file_path) {
+          console.log("[AUTO LOAD START] Aucun fichier archivé trouvé dans Storage");
+          return;
+        }
+
+        const displayName = imp.original_filename || imp.file_name;
+        console.log("%c[LAST IMPORT FOUND]", "color:#0b5cab;font-weight:bold", displayName, "— id:", imp.id);
+        sbLog(`Auto-chargement : ${displayName}…`);
+        updateSyncIndicator("uploading");
+
+        // Régénérer une URL signée fraîche (les URLs stockées peuvent expirer)
+        const { data: urlData } = await SB.client.storage
+          .from("imports-files").createSignedUrl(imp.file_path, 3600);
+        const fetchUrl = urlData?.signedUrl || imp.file_url;
+        if (!fetchUrl) throw new Error("URL Storage introuvable");
+
+        const resp = await fetch(fetchUrl);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status} — fichier introuvable dans Storage`);
+        const arrayBuffer = await resp.arrayBuffer();
+
+        console.log("%c[FILE DOWNLOADED]", "color:#0b5cab;font-weight:bold",
+          displayName, `(${(arrayBuffer.byteLength / 1024).toFixed(0)} Ko)`);
+
+        const workbook = XLSX.read(arrayBuffer, { type: "array", cellDates: false });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { defval: null, raw: true })
+          .filter(r => Object.values(r).some(v => v !== null && v !== "" && v !== undefined));
+
+        loadRows(rows, displayName);
+
+        // Marquer comme dernier ouvert (non bloquant)
+        SB.setLastOpened(imp.id).catch(() => {});
+        _apiCache.invalidate("history");
+        state.sbKpiHistory = null;
+
+        console.log("%c[UI RESTORED]", "color:#2e7d32;font-weight:bold",
+          `${rows.length} lignes chargées — interface reconstruite`);
+        sbLog(`✅ Chargé : ${displayName} (${rows.length} lignes)`);
+        updateSyncIndicator("synced");
+
+      } catch(e) {
+        console.error("[AUTO LOAD START] Erreur:", e.message);
+        sbLog(`❌ Auto-load échoué : ${e.message}`);
+        updateSyncIndicator("error");
+      }
+    }
+
+    // -------------------------------------------------------------------
     // STORAGE — Restaurer un fichier depuis Supabase Storage
     // -------------------------------------------------------------------
     async function restoreFromStorage(importId, fileUrl, fileName) {
@@ -3259,21 +3329,16 @@
       if (SB.load()) {
         console.log("[SB] Auto-connexion au démarrage…");
         SB.connect(SB.cfg.url, SB.cfg.key).then(ok => {
-          if (ok) {
-            btn.style.opacity = "1";
-            SB.fetchHistory().then(rows => {
-              state.sbKpiHistory = rows || [];
-              console.log(`[SB] Historique chargé: ${(rows||[]).length} entrées`);
-              // AUTO LOAD LAST IMPORT — restaurer le dernier import ouvert
-              const last = (rows || []).find(r => r.isLastOpened && r.fileUrl);
-              if (last && !state.rows.length) {
-                console.log("%c[AUTO LOAD LAST IMPORT]", "color:#0b5cab;font-weight:bold", last.fileName);
-                restoreFromStorage(last.importId, last.fileUrl, last.fileName);
-              }
-            });
-          } else {
-            console.warn("[SB] Auto-connexion échouée");
-          }
+          if (!ok) { console.warn("[SB] Auto-connexion échouée"); return; }
+          btn.style.opacity = "1";
+          // Charger l'historique (parallèle, non bloquant)
+          SB.fetchHistory().then(rows => {
+            state.sbKpiHistory = rows || [];
+            console.log(`[SB] Historique chargé: ${(rows||[]).length} entrées`);
+            if (state.currentTab === "history") renderAdvancedPage("history");
+          });
+          // Auto-load dernier import — toujours, pour sync multi-PC
+          autoLoadLastImport();
         });
       } else {
         console.log("[SB] Pas de config Supabase — mode local");
