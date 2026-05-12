@@ -645,7 +645,11 @@
         </div>
       </div>
       <nav id="tabs" class="sidebar-nav"></nav>
-      <div class="sidebar-footer" id="sidebarFooter"></div>
+      <div class="sidebar-footer" id="sidebarFooter">
+        <div style="font-size:10px;color:#8a9bb0;padding:8px 12px;line-height:1.5;border-top:1px solid rgba(217,224,231,0.4);margin-top:auto">
+          Développé par<br><span style="color:#667385;font-weight:500">Margaux GREGO</span>
+        </div>
+      </div>
     </nav>
     <div class="main-content">
     <header class="topbar">
@@ -1027,7 +1031,7 @@
         if (!item.SKU && !isFactice(item)) anomalies.push(anomaly("SKU vide", item, "La référence constructeur est vide ou nulle"));
         if (item.STATUT && !KNOWN_STATUSES.has(item.STATUT)) anomalies.push(anomaly("Statut non reconnu", item, item.STATUT));
         if (item.EMPLACEMENT && !KNOWN_LOCATIONS.has(item.EMPLACEMENT)) anomalies.push(anomaly("Emplacement non reconnu", item, item.EMPLACEMENT));
-        if ((item.TYPE === "RDU" || item.TYPE === "LDU") && !item.IMEI) anomalies.push(anomaly("RDU/LDU sans IMEI", item, "Produit RDU ou LDU sans numéro IMEI"));
+        if ((item.TYPE === "RDU" || item.TYPE === "LDU") && !item.IMEI && item.STATUT !== "HS") anomalies.push(anomaly("RDU/LDU sans IMEI", item, "Produit RDU ou LDU sans numéro IMEI"));
         if (item.STATUT === "LIVRAISON" && !item.EXPEDITEUR) anomalies.push(anomaly("Livraison sans expéditeur", item, "STATUT = LIVRAISON mais EXPEDITEUR vide"));
         if ((item.TYPE === "RDU" || item.TYPE === "LDU") && !isFactice(item) && !item.MARKETING_NAME) anomalies.push(anomaly("RDU/LDU sans MARKETING_NAME", item, "Produit RDU ou LDU non factice sans nom commercial"));
         if (item.STATUT === "STANDBY" && item.EMPLACEMENT !== "KUBE DESIGN") anomalies.push(anomaly("Standby hors Kube Design", item, "STATUT = STANDBY mais EMPLACEMENT différent de KUBE DESIGN"));
@@ -1437,11 +1441,17 @@
       const stockAlertSearch = config.tools === "stock-alert" ? (() => {
         const count = state.filteredRows.length;
         const gammeTag = state.gammeFilter ? `<span class="badge-filters">— ${escapeHtml(state.gammeFilter)}</span>` : "";
-        const tabLabel = state.currentTab === "low" ? "produit" : "produit";
+        const tabLabel = "produit";
         const badge = `<span class="livraison-badge"><span class="badge-count">${count}</span> ${tabLabel}${count !== 1 ? "s" : ""} ${gammeTag}</span>`;
+        const ruptureCount = state.currentTab === "critical" ? state.skuRows.filter(r => r.alert === "rupture").length : 0;
+        const ruptureBanner = (state.currentTab === "critical" && ruptureCount > 0) ? `
+          <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--red);background:#fef2f2;border:1px solid #fecaca;padding:3px 10px;border-radius:20px">
+            <strong>${ruptureCount}</strong>&nbsp;article${ruptureCount > 1 ? "s" : ""} déjà en rupture
+            <button id="gotoRupture" type="button" style="background:var(--red);color:#fff;border:0;border-radius:12px;padding:2px 8px;cursor:pointer;font-size:10px;font-weight:600">Voir les ruptures</button>
+          </span>` : "";
         return `
           <input id="detailSearch" type="search" placeholder="Rechercher un produit…" value="${escapeHtml(state.detailSearch)}" style="min-width:220px">
-          ${badge}
+          ${badge}${ruptureBanner}
           <select id="alertTypeFilter">
             <option value="">RDU + LDU</option>
             <option value="RDU" ${state.alertTypeFilter === "RDU" ? "selected" : ""}>RDU uniquement</option>
@@ -1652,6 +1662,16 @@
           state.gammeFilter = "";
           state.page = 1;
           renderTable();
+        });
+      }
+      const gotoRupture = document.getElementById("gotoRupture");
+      if (gotoRupture) {
+        gotoRupture.addEventListener("click", () => {
+          state.currentTab = "rupture";
+          state.page = 1;
+          state.sort = { key: "canonicalName", dir: "asc" };
+          showLoading();
+          setTimeout(() => renderAll(), 0);
         });
       }
       document.getElementById("exportCsv").addEventListener("click", () => exportCsv(state.filteredRows, `${state.currentTab}.csv`));
@@ -1868,7 +1888,7 @@
         el.innerHTML = renderHistoryPage();
         // [SUPABASE] Charger l'historique KPI si connecté et pas encore en cache
         if (SB.client && state.sbKpiHistory === null) {
-          SB.fetchKpis().then(rows => {
+          SB.fetchHistory().then(rows => {
             state.sbKpiHistory = rows || [];
             if (state.currentTab === "history") {
               document.getElementById("advancedPages").innerHTML = renderHistoryPage();
@@ -1884,6 +1904,47 @@
       document.getElementById("advancedPages").querySelectorAll("[data-adv-action]").forEach(el => {
         el.addEventListener("click", function() {
           handleAdvAction(this.dataset.advAction, this.dataset.advFilter);
+        });
+      });
+
+      document.getElementById("advancedPages").querySelectorAll(".sb-file-btn").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          const { action, importId, fileUrl, fileName } = btn.dataset;
+          const origText = btn.textContent;
+          btn.disabled = true; btn.textContent = "…";
+          if (action === "download") {
+            try {
+              let fetchUrl = fileUrl;
+              if (importId && SB.client) {
+                const { data: imp } = await SB.client.from("imports")
+                  .select("file_path").eq("id", importId).maybeSingle();
+                if (imp?.file_path) {
+                  const { data: u } = await SB.client.storage
+                    .from("imports-files").createSignedUrl(imp.file_path, 3600);
+                  if (u?.signedUrl) fetchUrl = u.signedUrl;
+                }
+              }
+              const resp = await fetch(fetchUrl);
+              if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+              const blob = await resp.blob();
+              const a = document.createElement("a");
+              a.href = URL.createObjectURL(blob);
+              a.download = fileName || "import.xlsx";
+              a.click();
+              URL.revokeObjectURL(a.href);
+            } catch(e) { alert("Erreur téléchargement : " + e.message); }
+            btn.disabled = false; btn.textContent = origText;
+          } else {
+            const ok = await restoreFromStorage(importId, fileUrl, fileName);
+            btn.disabled = false; btn.textContent = origText;
+            if (ok && action === "open") {
+              state.currentTab = "detail";
+              state.page = 1;
+              state.sort = { key: "GAMME", dir: "asc" };
+              showLoading();
+              setTimeout(() => renderAll(), 0);
+            }
+          }
         });
       });
     }
@@ -1960,17 +2021,38 @@
         <div class="adv-section-title">Historique des imports ${isCloud ? `<span style="font-size:11px;color:var(--green);font-weight:600;margin-left:8px">● Supabase — partagé entre machines</span>` : `<span style="font-size:11px;color:var(--muted);font-weight:400;margin-left:8px">(session locale)</span>`}</div>
         <div class="adv-card">
           <table class="adv-table">
-            <thead><tr><th>Date</th><th>Fichier</th><th>Stock Kube</th><th>Standby</th><th>Entrées</th><th>HS</th><th>Alertes crit.</th>${isCloud ? "<th>Taux dispo</th>" : ""}</tr></thead>
-            <tbody>${rows.map(r => `<tr>
-              <td>${r.date ? (r.date instanceof Date ? r.date.toLocaleDateString("fr-FR") : new Date(r.date).toLocaleDateString("fr-FR")) : "—"}</td>
-              <td>${escapeHtml(r.fileName || "")}</td>
-              <td><strong>${r.stockKube ?? "—"}</strong></td>
-              <td>${r.standby ?? "—"}</td>
-              <td>${r.livraisons ?? "—"}</td>
-              <td>${r.hs ?? "—"}</td>
-              <td style="color:${(r.critical ?? 0) > 0 ? "var(--red)" : "inherit"}">${r.critical ?? "—"}</td>
-              ${isCloud ? `<td>${r.tauxDispo != null ? r.tauxDispo + "%" : "—"}</td>` : ""}
-            </tr>`).join("")}</tbody>
+            <thead><tr><th>Date</th><th>Fichier</th><th>Stock Kube</th><th>Standby</th><th>Entrées</th><th>HS</th><th>Alertes crit.</th>${isCloud ? "<th>Taux dispo</th><th>Actions</th>" : ""}</tr></thead>
+            <tbody>${rows.map(r => {
+              const dateStr = r.date ? (r.date instanceof Date ? r.date.toLocaleDateString("fr-FR") : new Date(r.date).toLocaleDateString("fr-FR")) : "—";
+              const hasFile = isCloud && r.fileUrl;
+              const isCurrent = isCloud && r.isLastOpened;
+              const actionsCell = isCloud ? `<td style="white-space:nowrap">
+                ${hasFile ? `
+                  <button class="sb-file-btn" data-action="open"
+                    data-import-id="${escapeHtml(r.importId||"")}"
+                    data-file-url="${escapeHtml(r.fileUrl||"")}"
+                    data-file-name="${escapeHtml(r.originalFilename||r.fileName||"")}"
+                    style="font-size:10px;padding:2px 7px;margin-right:3px;background:var(--blue);color:#fff;border:0;border-radius:4px;cursor:pointer">Ouvrir</button>
+                  <button class="sb-file-btn" data-action="download"
+                    data-import-id="${escapeHtml(r.importId||"")}"
+                    data-file-url="${escapeHtml(r.fileUrl||"")}"
+                    data-file-name="${escapeHtml(r.originalFilename||r.fileName||"")}"
+                    style="font-size:10px;padding:2px 7px;background:#f4f6f8;border:1px solid var(--line);border-radius:4px;cursor:pointer">Télécharger</button>
+                ` : `<span style="font-size:10px;color:var(--muted)">Non archivé</span>`}
+                ${isCurrent ? `<span style="font-size:10px;color:var(--green);margin-left:4px">● actif</span>` : ""}
+              </td>` : "";
+              return `<tr${isCurrent ? ' style="background:#f0f9f4"' : ""}>
+                <td>${dateStr}</td>
+                <td>${escapeHtml(r.fileName || "")}</td>
+                <td><strong>${r.stockKube ?? "—"}</strong></td>
+                <td>${r.standby ?? "—"}</td>
+                <td>${r.livraisons ?? "—"}</td>
+                <td>${r.hs ?? "—"}</td>
+                <td style="color:${(r.critical ?? 0) > 0 ? "var(--red)" : "inherit"}">${r.critical ?? "—"}</td>
+                ${isCloud ? `<td>${r.tauxDispo != null ? r.tauxDispo + "%" : "—"}</td>` : ""}
+                ${actionsCell}
+              </tr>`;
+            }).join("")}</tbody>
           </table>
         </div>
       `;
@@ -2171,18 +2253,22 @@
         if (SB.client) {
           const m = computeMetrics();
           await SB.logEvent(null, "import_start", file.name);
-          const importId = await SB.saveImport(rows, file.name, m);
+          // Upload du fichier Excel dans Supabase Storage
+          const storageData = await SB.uploadFile(file);
+          const importId = await SB.saveImport(rows, file.name, m, storageData);
           if (importId) {
             console.log("%c[INSERT IMPORT OK]", "color:#2e7d32;font-weight:bold", "id:", importId);
             await Promise.all([
               SB.pushSkuStats(importId, state.skuRows),
               SB.pushAnomalies(importId, state.anomalies),
-              SB.logEvent(importId, "import_success", `${rows.length} lignes`)
+              SB.logEvent(importId, "import_success", `${rows.length} lignes`),
+              SB.setLastOpened(importId)
             ]).catch(() => {});
             console.log("%c[SYNC COMPLETE]", "color:#2e7d32;font-weight:bold", file.name);
           } else {
             console.error("%c[INSERT IMPORT FAILED]", "color:#c62828;font-weight:bold", "importId est null — voir erreurs ci-dessus");
           }
+          _apiCache.invalidate("history");
           state.sbKpiHistory = null;
           state.sbImports = null;
         } else {
@@ -2671,7 +2757,7 @@
       // ---------------------------------------------------------------
       // INSERT imports + kpi_snapshots — inserts DIRECTS (sans RPC)
       // ---------------------------------------------------------------
-      async saveImport(dataset, fileName, metrics) {
+      async saveImport(dataset, fileName, metrics, storageData) {
         if (!this.client) { console.warn("[SB] saveImport: client null"); return null; }
         console.log(`[SB] saveImport → "${fileName}" (${dataset.length} lignes)`);
         try {
@@ -2679,9 +2765,16 @@
           const sorties = state.rows.filter(r => r.STATUT === "LIVRAISON" && r.EXPEDITEUR === "KUBE DESIGN").length;
           const taux = metrics.physical > 0 ? +((metrics.available / metrics.physical) * 100).toFixed(2) : null;
 
+          const insertData = { file_name: fileName, row_count: dataset.length };
+          if (storageData) {
+            insertData.file_path         = storageData.filePath        || null;
+            insertData.file_url          = storageData.fileUrl         || null;
+            insertData.original_filename = storageData.originalFilename || fileName;
+          }
+
           const { data: imp, error: e1 } = await withRetry(() =>
             this.client.from("imports")
-              .insert({ file_name: fileName, row_count: dataset.length })
+              .insert(insertData)
               .select("id").single()
           );
           if (e1) { console.error("[SB] INSERT imports ERREUR:", e1.message, e1.code, e1.details); return null; }
@@ -2805,27 +2898,91 @@
       },
 
       // ---------------------------------------------------------------
-      // SELECT v_kpi_history (historique KPI multi-PC)
+      // SELECT historique enrichi (importId + file_url pour restore)
       // ---------------------------------------------------------------
-      async fetchKpis() {
+      async fetchHistory() {
         if (!this.client) return null;
-        const cached = _apiCache.get("kpis");
+        const cached = _apiCache.get("history");
         if (cached) return cached;
         try {
-          const { data, error } = await this.client.from("v_kpi_history")
-            .select("snapshot_at,file_name,stock_kube,standby,livraisons,hs,alert_critical,alert_low,alert_rupture,taux_dispo")
+          const { data, error } = await this.client
+            .from("kpi_snapshots")
+            .select("snapshot_at,stock_kube,standby,livraisons,hs,alert_critical,alert_low,alert_rupture,taux_dispo,imports!inner(id,file_name,file_url,file_path,original_filename,is_last_opened)")
+            .order("snapshot_at", { ascending: false })
             .limit(30);
-          if (error) { console.error("[SB] fetchKpis:", error.message); return null; }
+          if (error) { console.error("[SB] fetchHistory:", error.message); return null; }
           const mapped = data.map(r => ({
-            date: new Date(r.snapshot_at), fileName: r.file_name,
-            stockKube: r.stock_kube, standby: r.standby,
-            livraisons: r.livraisons, hs: r.hs,
-            critical: r.alert_critical, low: r.alert_low,
-            rupture: r.alert_rupture, tauxDispo: r.taux_dispo
+            importId:         r.imports.id,
+            date:             new Date(r.snapshot_at),
+            fileName:         r.imports.file_name,
+            fileUrl:          r.imports.file_url  || null,
+            filePath:         r.imports.file_path || null,
+            originalFilename: r.imports.original_filename || r.imports.file_name,
+            isLastOpened:     r.imports.is_last_opened || false,
+            stockKube:  r.stock_kube,  standby:   r.standby,
+            livraisons: r.livraisons,  hs:        r.hs,
+            critical:   r.alert_critical, low:    r.alert_low,
+            rupture:    r.alert_rupture,  tauxDispo: r.taux_dispo
           }));
-          _apiCache.set("kpis", mapped);
+          _apiCache.set("history", mapped);
           return mapped;
-        } catch(e) { console.error("[SB] fetchKpis:", e.message); return null; }
+        } catch(e) { console.error("[SB] fetchHistory:", e.message); return null; }
+      },
+
+      // ---------------------------------------------------------------
+      // STORAGE : upload du fichier Excel original
+      // ---------------------------------------------------------------
+      async uploadFile(file) {
+        if (!this.client || !file) return null;
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        let filePath = `${Date.now()}_${safeName}`;
+        console.log("%c[STORAGE UPLOAD]", "color:#0b5cab;font-weight:bold", filePath);
+        try {
+          let { error: e1 } = await this.client.storage
+            .from("imports-files").upload(filePath, file, { upsert: false });
+          if (e1) {
+            filePath = `${Date.now()}_${crypto.randomUUID().substring(0,8)}_${safeName}`;
+            const { error: e2 } = await this.client.storage
+              .from("imports-files").upload(filePath, file, { upsert: false });
+            if (e2) { console.error("[STORAGE UPLOAD] Erreur:", e2.message); return null; }
+          }
+          const { data: urlData } = await this.client.storage
+            .from("imports-files").createSignedUrl(filePath, 315360000);
+          console.log("[STORAGE UPLOAD] OK:", filePath);
+          return { filePath, fileUrl: urlData?.signedUrl || null, originalFilename: file.name };
+        } catch(e) { console.error("[STORAGE UPLOAD] Exception:", e.message); return null; }
+      },
+
+      // ---------------------------------------------------------------
+      // Marquer le dernier import ouvert (multi-PC)
+      // ---------------------------------------------------------------
+      async setLastOpened(importId) {
+        if (!this.client || !importId) return;
+        try {
+          await this.client.from("imports")
+            .update({ is_last_opened: false, last_opened_at: null })
+            .neq("id", importId);
+          await this.client.from("imports")
+            .update({ is_last_opened: true, last_opened_at: new Date().toISOString() })
+            .eq("id", importId);
+        } catch(e) { console.error("[SB] setLastOpened:", e.message); }
+      },
+
+      // ---------------------------------------------------------------
+      // Récupérer le dernier import ouvert (auto-load au démarrage)
+      // ---------------------------------------------------------------
+      async fetchLastOpened() {
+        if (!this.client) return null;
+        try {
+          const { data, error } = await this.client.from("imports")
+            .select("id,file_name,original_filename,file_url,file_path,imported_at")
+            .eq("is_last_opened", true)
+            .order("last_opened_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (error || !data) return null;
+          return data;
+        } catch(e) { return null; }
       },
 
       async fetchAnalytics() {
@@ -2916,6 +3073,53 @@
         incoming: rows.filter(r => r.STATUT==="LIVRAISON" && r.EXPEDITEUR!=="KUBE DESIGN").length,
         anomalies: anomalies.length
       };
+    }
+
+    // -------------------------------------------------------------------
+    // STORAGE — Restaurer un fichier depuis Supabase Storage
+    // -------------------------------------------------------------------
+    async function restoreFromStorage(importId, fileUrl, fileName) {
+      if (!fileUrl && !importId) {
+        sbLog(`Fichier non archivé : ${fileName}`);
+        return false;
+      }
+      console.log("%c[STORAGE RESTORE]", "color:#0b5cab;font-weight:bold", fileName);
+      sbLog(`Restauration : ${fileName}…`);
+      updateSyncIndicator("uploading");
+      try {
+        // Régénérer une URL signée fraîche à partir du file_path
+        let fetchUrl = fileUrl;
+        if (importId && SB.client) {
+          const { data: imp } = await SB.client.from("imports")
+            .select("file_path").eq("id", importId).maybeSingle();
+          if (imp?.file_path) {
+            const { data: urlData } = await SB.client.storage
+              .from("imports-files").createSignedUrl(imp.file_path, 3600);
+            if (urlData?.signedUrl) fetchUrl = urlData.signedUrl;
+          }
+        }
+        if (!fetchUrl) throw new Error("URL introuvable");
+        const resp = await fetch(fetchUrl);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const arrayBuffer = await resp.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: "array", cellDates: false });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { defval: null, raw: true })
+          .filter(r => Object.values(r).some(v => v !== null && v !== "" && v !== undefined));
+        loadRows(rows, fileName);
+        console.log("%c[FILE RESTORED]", "color:#2e7d32;font-weight:bold", fileName, `(${rows.length} lignes)`);
+        sbLog(`✅ Restauré : ${fileName} (${rows.length} lignes)`);
+        if (importId) await SB.setLastOpened(importId);
+        _apiCache.invalidate("history");
+        state.sbKpiHistory = null;
+        updateSyncIndicator("synced");
+        return true;
+      } catch(e) {
+        console.error("[STORAGE RESTORE] Erreur:", e.message);
+        sbLog(`❌ Erreur restauration : ${e.message}`);
+        updateSyncIndicator("error");
+        return false;
+      }
     }
 
     // -------------------------------------------------------------------
@@ -3057,9 +3261,15 @@
         SB.connect(SB.cfg.url, SB.cfg.key).then(ok => {
           if (ok) {
             btn.style.opacity = "1";
-            SB.fetchKpis().then(rows => {
+            SB.fetchHistory().then(rows => {
               state.sbKpiHistory = rows || [];
-              console.log(`[SB] Historique KPI chargé: ${(rows||[]).length} entrées`);
+              console.log(`[SB] Historique chargé: ${(rows||[]).length} entrées`);
+              // AUTO LOAD LAST IMPORT — restaurer le dernier import ouvert
+              const last = (rows || []).find(r => r.isLastOpened && r.fileUrl);
+              if (last && !state.rows.length) {
+                console.log("%c[AUTO LOAD LAST IMPORT]", "color:#0b5cab;font-weight:bold", last.fileName);
+                restoreFromStorage(last.importId, last.fileUrl, last.fileName);
+              }
             });
           } else {
             console.warn("[SB] Auto-connexion échouée");

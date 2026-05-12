@@ -191,6 +191,33 @@ order by s.qty_kube asc, s.marketing_name;
 --   for select to authenticated using (true);
 
 -- ============================================================
+-- COLONNES STORAGE — ajout sur la table imports
+-- ============================================================
+alter table public.imports add column if not exists file_path         text;
+alter table public.imports add column if not exists file_url          text;
+alter table public.imports add column if not exists original_filename text;
+alter table public.imports add column if not exists last_opened_at    timestamptz;
+alter table public.imports add column if not exists is_last_opened    boolean not null default false;
+
+create index if not exists imports_last_opened_idx on public.imports (is_last_opened) where is_last_opened = true;
+
+-- ============================================================
+-- SUPABASE STORAGE — bucket imports-files
+-- ============================================================
+-- Exécuter dans le SQL Editor de Supabase :
+--
+-- insert into storage.buckets (id, name, public)
+-- values ('imports-files', 'imports-files', false)
+-- on conflict (id) do nothing;
+--
+-- create policy "anon_upload"  on storage.objects for insert to anon
+--   with check (bucket_id = 'imports-files');
+-- create policy "anon_select"  on storage.objects for select to anon
+--   using (bucket_id = 'imports-files');
+-- create policy "anon_delete"  on storage.objects for delete to anon
+--   using (bucket_id = 'imports-files');
+
+-- ============================================================
 -- FONCTION : insert_import_with_kpis
 -- Insère un import + son snapshot KPI en une transaction
 -- ============================================================
