@@ -2165,6 +2165,8 @@
         // [PERSISTENCE: IndexedDB — stockage local offline-first]
         await saveImport(rows, file.name);
         // [SUPABASE: synchronisation complète → partage entre machines]
+        // Attendre que le client soit prêt (auto-connect asynchrone)
+        if (SB.ready) await SB.ready;
         if (SB.client) {
           const m = computeMetrics();
           await SB.logEvent(null, "import_start", file.name);
@@ -2553,59 +2555,46 @@
     });
 
     // ===================================================================
-    // ARCHITECTURE SUPABASE — DONNÉES CENTRALISÉES
+    // SUPABASE — SYNCHRONISATION MULTI-PC
+    // URL  : https://awamnjpfnacobfbbtqwl.supabase.co
+    // KEY  : anon/publishable — safe frontend (jamais de service_role)
     // ===================================================================
-    // POUR DÉPLOYER :
-    //   1. Créer un projet sur https://supabase.com
-    //   2. Exécuter supabase-schema.sql dans l'éditeur SQL Supabase
-    //   3. Coller l'URL + Anon Key dans le panneau ⚙ Supabase (en haut)
-    //      OU hardcoder les constantes ci-dessous pour un déploiement fixe :
-    //        VITE_SUPABASE_URL      → const SUPABASE_URL_FIXED
-    //        VITE_SUPABASE_ANON_KEY → const SUPABASE_KEY_FIXED
-    // ===================================================================
-
-    // [ENV] Variables d'environnement — à remplacer pour déploiement fixe
-    const SUPABASE_URL_FIXED = "";   // ex: "https://xxxx.supabase.co"
-    const SUPABASE_KEY_FIXED = "";   // ex: "eyJhbGciOiJIUzI1NiJ9..."
+    const SUPABASE_URL_FIXED = "https://awamnjpfnacobfbbtqwl.supabase.co";
+    const SUPABASE_KEY_FIXED = "sb_publishable_-sntcHXCOiWtkgzMg6o-aA_Wt_8nPQK";
 
     // -------------------------------------------------------------------
-    // [SERVICE: cache/apiCache] — Cache API avec TTL 60s
+    // Cache API — TTL 60s
     // -------------------------------------------------------------------
     const _apiCache = {
-      _data: {},
-      _ts: {},
-      TTL: 60000,
-      get(key) { return (Date.now() - (this._ts[key] || 0) < this.TTL) ? this._data[key] : null; },
-      set(key, val) { this._data[key] = val; this._ts[key] = Date.now(); },
-      invalidate(key) { this._ts[key] = 0; },
+      _data: {}, _ts: {}, TTL: 60000,
+      get(k) { return (Date.now() - (this._ts[k]||0) < this.TTL) ? this._data[k] : null; },
+      set(k, v) { this._data[k] = v; this._ts[k] = Date.now(); },
+      invalidate(k) { this._ts[k] = 0; },
       invalidateAll() { this._ts = {}; }
     };
 
-    // -------------------------------------------------------------------
-    // [SERVICE: api/retry] — Retry avec backoff exponentiel
-    // -------------------------------------------------------------------
-    async function withRetry(fn, maxAttempts = 3, delayMs = 600) {
-      for (let i = 0; i < maxAttempts; i++) {
+    // Retry exponentiel
+    async function withRetry(fn, tries = 3, delay = 600) {
+      for (let i = 0; i < tries; i++) {
         try { return await fn(); }
-        catch (e) {
-          if (i === maxAttempts - 1) throw e;
-          await new Promise(r => setTimeout(r, delayMs * Math.pow(2, i)));
-        }
+        catch(e) { if (i === tries-1) throw e; await new Promise(r => setTimeout(r, delay * (i+1))); }
       }
     }
 
     // -------------------------------------------------------------------
-    // [SERVICE: supabase/client] — Objet SB principal
-    // Tables utilisées : imports, kpi_snapshots, soda_rows
-    // Vues utilisées   : v_kpi_history, v_stock_tension
-    // Fonction RPC     : insert_import_with_kpis
+    // SB — client Supabase centralisé
+    // Inserts DIRECTS (pas de RPC) pour éviter les dépendances aux fonctions SQL
     // -------------------------------------------------------------------
     const SB = {
       client: null,
       cfg: null,
+      _readyResolve: null,
+      ready: null,   // Promise résolue quand le client est prêt
 
-      // [PERSISTENCE: localStorage] Stockage des clés de connexion uniquement
-      // Les données métier ne transitent JAMAIS par localStorage
+      _initReady() {
+        this.ready = new Promise(res => { this._readyResolve = res; });
+      },
+
       load() {
         if (SUPABASE_URL_FIXED && SUPABASE_KEY_FIXED) {
           this.cfg = { url: SUPABASE_URL_FIXED, key: SUPABASE_KEY_FIXED };
@@ -2613,29 +2602,54 @@
         }
         const raw = localStorage.getItem("sb_config");
         this.cfg = raw ? JSON.parse(raw) : null;
-        return !!(this.cfg && this.cfg.url && this.cfg.key);
+        return !!(this.cfg?.url && this.cfg?.key);
       },
 
       async connect(url, key) {
+        console.log("[SB] Connexion en cours…", url);
         updateSyncIndicator("connecting");
-        return new Promise((resolve) => {
-          if (window.supabase) { this._createClient(url, key, resolve); return; }
+        return new Promise(resolve => {
+          const init = () => this._createClient(url, key, resolve);
+          if (window.supabase) { init(); return; }
           const s = document.createElement("script");
           s.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js";
-          s.onload = () => this._createClient(url, key, resolve);
-          s.onerror = () => { updateSyncIndicator("error"); resolve(false); };
+          s.onload = init;
+          s.onerror = () => {
+            console.error("[SB] Échec chargement SDK Supabase");
+            updateSyncIndicator("error");
+            resolve(false);
+          };
           document.head.appendChild(s);
         });
       },
 
-      _createClient(url, key, resolve) {
+      async _createClient(url, key, resolve) {
         try {
-          this.client = window.supabase.createClient(url, key);
+          this.client = window.supabase.createClient(url, key, {
+            auth: { persistSession: false }
+          });
           this.cfg = { url, key };
           if (!SUPABASE_URL_FIXED) localStorage.setItem("sb_config", JSON.stringify(this.cfg));
-          updateSyncIndicator("synced");
+
+          // Test réel : SELECT sur la table imports
+          const { error: testErr } = await this.client.from("imports").select("id").limit(1);
+          if (testErr) {
+            console.error("[SB] Client créé mais SELECT échoué:", testErr.message, "| code:", testErr.code);
+            // On garde quand même le client — peut être un problème RLS
+            updateSyncIndicator("error");
+            sbLog(`Connexion partielle — erreur SELECT: ${testErr.message}`);
+          } else {
+            console.log("[SB] ✅ Connexion OK — SELECT imports réussi");
+            updateSyncIndicator("synced");
+          }
+          if (this._readyResolve) { this._readyResolve(true); this._readyResolve = null; }
           resolve(true);
-        } catch (e) { updateSyncIndicator("error"); resolve(false); }
+        } catch(e) {
+          console.error("[SB] Erreur createClient:", e.message);
+          updateSyncIndicator("error");
+          if (this._readyResolve) { this._readyResolve(false); this._readyResolve = null; }
+          resolve(false);
+        }
       },
 
       disconnect() {
@@ -2643,150 +2657,68 @@
         localStorage.removeItem("sb_config");
         _apiCache.invalidateAll();
         state.sbKpiHistory = null; state.sbImports = null;
+        this._initReady();
         updateSyncIndicator("offline");
+        console.log("[SB] Déconnecté");
       },
 
       // ---------------------------------------------------------------
-      // [TABLE: imports] [TABLE: kpi_snapshots]
-      // RPC: insert_import_with_kpis — transaction atomique
-      // Appelé automatiquement après chaque import Excel
+      // INSERT imports + kpi_snapshots — inserts DIRECTS (sans RPC)
       // ---------------------------------------------------------------
       async saveImport(dataset, fileName, metrics) {
-        if (!this.client) return null;
+        if (!this.client) { console.warn("[SB] saveImport: client null"); return null; }
+        console.log(`[SB] saveImport → "${fileName}" (${dataset.length} lignes)`);
         try {
-          const { data: importId, error } = await withRetry(() =>
-            this.client.rpc("insert_import_with_kpis", {
-              p_file_name:      fileName,
-              p_row_count:      dataset.length,
-              p_stock_physique: metrics.physical,
-              p_stock_kube:     metrics.available,
-              p_standby:        metrics.standby,
-              p_livraisons:     metrics.incoming,
-              p_sorties:        state.rows.filter(r => r.STATUT === "LIVRAISON" && r.EXPEDITEUR === "KUBE DESIGN").length,
-              p_projet:         metrics.project,
-              p_hs:             metrics.hs,
-              p_alert_low:      metrics.low,
-              p_alert_critical: metrics.critical,
-              p_alert_rupture:  metrics.rupture,
-              p_anomalies:      metrics.anomalies
+          // 1. INSERT imports
+          const sorties = state.rows.filter(r => r.STATUT === "LIVRAISON" && r.EXPEDITEUR === "KUBE DESIGN").length;
+          const taux = metrics.physical > 0 ? +((metrics.available / metrics.physical) * 100).toFixed(2) : null;
+
+          const { data: imp, error: e1 } = await withRetry(() =>
+            this.client.from("imports")
+              .insert({ file_name: fileName, row_count: dataset.length })
+              .select("id").single()
+          );
+          if (e1) { console.error("[SB] INSERT imports ERREUR:", e1.message, e1.code, e1.details); return null; }
+          const importId = imp.id;
+          console.log("[SB] ✅ INSERT imports OK — id:", importId);
+
+          // 2. INSERT kpi_snapshots
+          const { error: e2 } = await withRetry(() =>
+            this.client.from("kpi_snapshots").insert({
+              import_id:      importId,
+              stock_physique: metrics.physical ?? 0,
+              stock_kube:     metrics.available ?? 0,
+              standby:        metrics.standby ?? 0,
+              livraisons:     metrics.incoming ?? 0,
+              sorties,
+              projet:         metrics.project ?? 0,
+              hs:             metrics.hs ?? 0,
+              alert_low:      metrics.low ?? 0,
+              alert_critical: metrics.critical ?? 0,
+              alert_rupture:  metrics.rupture ?? 0,
+              anomalies:      metrics.anomalies ?? 0,
+              taux_dispo:     taux
             })
           );
-          if (error) throw error;
+          if (e2) { console.error("[SB] INSERT kpi_snapshots ERREUR:", e2.message, e2.code); }
+          else { console.log("[SB] ✅ INSERT kpi_snapshots OK"); }
+
           _apiCache.invalidate("imports"); _apiCache.invalidate("kpis");
-          console.info("[Supabase] Import enregistré:", importId);
+          sbLog(`✅ Import "${fileName}" synchronisé (${dataset.length} lignes)`);
           return importId;
-        } catch (e) { console.warn("[Supabase] saveImport:", e.message); return null; }
+        } catch(e) {
+          console.error("[SB] saveImport exception:", e.message);
+          sbLog(`❌ Erreur sync: ${e.message}`);
+          return null;
+        }
       },
 
       // ---------------------------------------------------------------
-      // [TABLE: soda_rows]
-      // Upload des lignes brutes par batch de 500
-      // Optionnel — déclenché via "Sync lignes" dans le panneau
-      // Nécessaire pour accéder aux données brutes depuis un autre PC
-      // ---------------------------------------------------------------
-      async uploadRows(importId, dataset, onProgress) {
-        if (!this.client || !importId) return false;
-        const BATCH = 500;
-        try {
-          for (let i = 0; i < dataset.length; i += BATCH) {
-            const batch = dataset.slice(i, i + BATCH).map(r => ({
-              import_id:      importId,
-              type:           r.TYPE ?? null,
-              marketing_name: r.MARKETING_NAME ?? null,
-              sku:            r.SKU ?? null,
-              statut:         r.STATUT ?? null,
-              emplacement:    r.EMPLACEMENT ?? null,
-              expediteur:     r.EXPEDITEUR ?? null,
-              enseigne:       r.ENSEIGNE ?? null,
-              magasin:        r.MAGASIN ?? null,
-              mobilier:       r.MOBILIER ?? null,
-              livraison:      r.LIVRAISON ?? null,
-              imei:           r.IMEI ?? null,
-              sn:             r.SN ?? null,
-              planning:       r.PLANNING ?? null,
-              commentaire:    r.COMMENTAIRE ?? null,
-              gamme:          r.GAMME ?? null
-            }));
-            const { error } = await this.client.from("soda_rows").insert(batch);
-            if (error) throw error;
-            if (onProgress) onProgress(Math.min(i + BATCH, dataset.length), dataset.length);
-          }
-          return true;
-        } catch (e) { console.warn("[Supabase] uploadRows:", e.message); return false; }
-      },
-
-      // ---------------------------------------------------------------
-      // [TABLE: imports] — Liste des imports pour le modal historique
-      // Partagée entre tous les appareils connectés à ce projet Supabase
-      // ---------------------------------------------------------------
-      async fetchImports() {
-        if (!this.client) return null;
-        const cached = _apiCache.get("imports");
-        if (cached) return cached;
-        try {
-          const { data, error } = await withRetry(() =>
-            this.client.from("imports")
-              .select("id, file_name, imported_at, row_count")
-              .order("imported_at", { ascending: false })
-              .limit(50)
-          );
-          if (error) throw error;
-          _apiCache.set("imports", data);
-          return data;
-        } catch (e) { console.warn("[Supabase] fetchImports:", e.message); return null; }
-      },
-
-      // ---------------------------------------------------------------
-      // [VIEW: v_kpi_history] — Historique KPI pour l'onglet Historique
-      // Contient tous les imports de tous les appareils
-      // ---------------------------------------------------------------
-      async fetchKpis() {
-        if (!this.client) return null;
-        const cached = _apiCache.get("kpis");
-        if (cached) return cached;
-        try {
-          const { data, error } = await withRetry(() =>
-            this.client.from("v_kpi_history")
-              .select("snapshot_at,file_name,stock_kube,standby,livraisons,hs,alert_critical,alert_low,alert_rupture,taux_dispo")
-              .limit(30)
-          );
-          if (error) throw error;
-          // Mapper vers le format de importHistory (compatibilité renderHistoryPage)
-          const mapped = data.map(r => ({
-            date:       new Date(r.snapshot_at),
-            fileName:   r.file_name,
-            stockKube:  r.stock_kube,
-            standby:    r.standby,
-            livraisons: r.livraisons,
-            hs:         r.hs,
-            critical:   r.alert_critical,
-            low:        r.alert_low,
-            rupture:    r.alert_rupture,
-            tauxDispo:  r.taux_dispo
-          }));
-          _apiCache.set("kpis", mapped);
-          return mapped;
-        } catch (e) { console.warn("[Supabase] fetchKpis:", e.message); return null; }
-      },
-
-      // ---------------------------------------------------------------
-      // [VIEW: v_stock_tension] — Produits en tension (dernier import)
-      // ---------------------------------------------------------------
-      async fetchAnalytics() {
-        if (!this.client) return null;
-        try {
-          const { data, error } = await this.client.from("v_stock_tension").select("*");
-          if (error) throw error;
-          return data;
-        } catch (e) { console.warn("[Supabase] fetchAnalytics:", e.message); return null; }
-      },
-
-      // ---------------------------------------------------------------
-      // [TABLE: sku_stats] — Stats par MARKETING_NAME
+      // INSERT sku_stats — batch 500
       // ---------------------------------------------------------------
       async pushSkuStats(importId, skuRows) {
         if (!this.client || !importId || !skuRows.length) return false;
-        const BATCH = 500;
+        console.log(`[SB] pushSkuStats → ${skuRows.length} produits`);
         try {
           const rows = skuRows.map(r => ({
             import_id:      importId,
@@ -2796,35 +2728,23 @@
             qty_standby:    r.qtyStandby || 0,
             qty_total:      r.qtyTotal || 0,
             alert_level:    r.alert || "ok",
-            is_factice:     r.isFactice || false
+            is_factice:     !!r.isFactice
           }));
-          for (let i = 0; i < rows.length; i += BATCH) {
-            const { error } = await this.client.from("sku_stats").insert(rows.slice(i, i + BATCH));
-            if (error) throw error;
+          for (let i = 0; i < rows.length; i += 500) {
+            const { error } = await this.client.from("sku_stats").insert(rows.slice(i, i+500));
+            if (error) { console.error("[SB] INSERT sku_stats ERREUR:", error.message); return false; }
           }
+          console.log("[SB] ✅ INSERT sku_stats OK");
           return true;
-        } catch (e) { console.warn("[Supabase] pushSkuStats:", e.message); return false; }
-      },
-
-      async fetchSkuStats(importId) {
-        if (!this.client) return null;
-        try {
-          const q = importId
-            ? this.client.from("sku_stats").select("*").eq("import_id", importId)
-            : this.client.from("sku_stats").select("*")
-                .eq("import_id", this.client.from("imports").select("id").order("imported_at", { ascending: false }).limit(1));
-          const { data, error } = await q.order("qty_kube", { ascending: true });
-          if (error) throw error;
-          return data;
-        } catch (e) { console.warn("[Supabase] fetchSkuStats:", e.message); return null; }
+        } catch(e) { console.error("[SB] pushSkuStats:", e.message); return false; }
       },
 
       // ---------------------------------------------------------------
-      // [TABLE: anomalies] — Anomalies détectées à l'import
+      // INSERT anomalies — batch 500
       // ---------------------------------------------------------------
       async pushAnomalies(importId, anomalies) {
         if (!this.client || !importId || !anomalies.length) return false;
-        const BATCH = 500;
+        console.log(`[SB] pushAnomalies → ${anomalies.length} anomalies`);
         try {
           const rows = anomalies.map(a => ({
             import_id:    importId,
@@ -2837,55 +2757,118 @@
             detail:       a.detail || null,
             dismissed:    false
           }));
-          for (let i = 0; i < rows.length; i += BATCH) {
-            const { error } = await this.client.from("anomalies").insert(rows.slice(i, i + BATCH));
-            if (error) throw error;
+          for (let i = 0; i < rows.length; i += 500) {
+            const { error } = await this.client.from("anomalies").insert(rows.slice(i, i+500));
+            if (error) { console.error("[SB] INSERT anomalies ERREUR:", error.message); return false; }
           }
+          console.log("[SB] ✅ INSERT anomalies OK");
           return true;
-        } catch (e) { console.warn("[Supabase] pushAnomalies:", e.message); return false; }
+        } catch(e) { console.error("[SB] pushAnomalies:", e.message); return false; }
+      },
+
+      // ---------------------------------------------------------------
+      // INSERT import_logs
+      // ---------------------------------------------------------------
+      async logEvent(importId, event, detail) {
+        if (!this.client) return;
+        try {
+          const { error } = await this.client.from("import_logs").insert({
+            import_id: importId || null, event,
+            detail: detail || null,
+            user_agent: navigator.userAgent.substring(0, 200)
+          });
+          if (error) console.warn("[SB] import_logs:", error.message);
+        } catch(e) {}
+      },
+
+      // ---------------------------------------------------------------
+      // SELECT imports (liste partagée entre PCs)
+      // ---------------------------------------------------------------
+      async fetchImports() {
+        if (!this.client) return null;
+        const cached = _apiCache.get("imports");
+        if (cached) return cached;
+        try {
+          const { data, error } = await this.client.from("imports")
+            .select("id,file_name,imported_at,row_count")
+            .order("imported_at", { ascending: false }).limit(50);
+          if (error) { console.error("[SB] fetchImports:", error.message); return null; }
+          _apiCache.set("imports", data);
+          return data;
+        } catch(e) { console.error("[SB] fetchImports:", e.message); return null; }
+      },
+
+      // ---------------------------------------------------------------
+      // SELECT v_kpi_history (historique KPI multi-PC)
+      // ---------------------------------------------------------------
+      async fetchKpis() {
+        if (!this.client) return null;
+        const cached = _apiCache.get("kpis");
+        if (cached) return cached;
+        try {
+          const { data, error } = await this.client.from("v_kpi_history")
+            .select("snapshot_at,file_name,stock_kube,standby,livraisons,hs,alert_critical,alert_low,alert_rupture,taux_dispo")
+            .limit(30);
+          if (error) { console.error("[SB] fetchKpis:", error.message); return null; }
+          const mapped = data.map(r => ({
+            date: new Date(r.snapshot_at), fileName: r.file_name,
+            stockKube: r.stock_kube, standby: r.standby,
+            livraisons: r.livraisons, hs: r.hs,
+            critical: r.alert_critical, low: r.alert_low,
+            rupture: r.alert_rupture, tauxDispo: r.taux_dispo
+          }));
+          _apiCache.set("kpis", mapped);
+          return mapped;
+        } catch(e) { console.error("[SB] fetchKpis:", e.message); return null; }
+      },
+
+      async fetchAnalytics() {
+        if (!this.client) return null;
+        try {
+          const { data, error } = await this.client.from("v_stock_tension").select("*");
+          if (error) { console.error("[SB] fetchAnalytics:", error.message); return null; }
+          return data;
+        } catch(e) { return null; }
+      },
+
+      async fetchSkuStats(importId) {
+        if (!this.client) return null;
+        try {
+          const { data, error } = await this.client.from("sku_stats")
+            .select("*").eq("import_id", importId).order("qty_kube", { ascending: true });
+          if (error) { console.error("[SB] fetchSkuStats:", error.message); return null; }
+          return data;
+        } catch(e) { return null; }
       },
 
       async fetchAnomalies(importId) {
         if (!this.client) return null;
         try {
-          const { data, error } = await withRetry(() =>
-            this.client.from("anomalies")
-              .select("*")
-              .eq("import_id", importId)
-              .eq("dismissed", false)
-          );
-          if (error) throw error;
+          const { data, error } = await this.client.from("anomalies")
+            .select("*").eq("import_id", importId).eq("dismissed", false);
+          if (error) { console.error("[SB] fetchAnomalies:", error.message); return null; }
           return data;
-        } catch (e) { console.warn("[Supabase] fetchAnomalies:", e.message); return null; }
+        } catch(e) { return null; }
       },
 
       // ---------------------------------------------------------------
-      // [TABLE: import_logs] — Journal d'audit
-      // events : import_start | import_success | import_error | export_generated
-      // ---------------------------------------------------------------
-      async logEvent(importId, event, detail) {
-        if (!this.client) return;
-        try {
-          await this.client.from("import_logs").insert({
-            import_id:  importId || null,
-            event,
-            detail:     detail || null,
-            user_agent: navigator.userAgent.substring(0, 200)
-          });
-        } catch (e) { /* logs non bloquants */ }
-      },
-
-      // ---------------------------------------------------------------
-      // Migration : IndexedDB → Supabase
-      // Envoie tous les imports locaux vers Supabase
-      // Utile pour "rattraper" les imports faits avant la connexion
+      // MIGRATION : IndexedDB → Supabase
+      // Évite les doublons en vérifiant file_name + row_count
       // ---------------------------------------------------------------
       async syncHistory(onProgress) {
         if (!this.client) return { ok: 0, fail: 0 };
         const localEntries = await listImports();
         if (!localEntries.length) return { ok: 0, fail: 0 };
-        let ok = 0, fail = 0;
+
+        // Récupérer les imports déjà présents dans Supabase
+        const { data: existing } = await this.client.from("imports")
+          .select("file_name,row_count");
+        const existingSet = new Set((existing||[]).map(e => `${e.file_name}|${e.row_count}`));
+
+        let ok = 0, skip = 0, fail = 0;
         for (const entry of localEntries) {
+          const key = `${entry.fileName}|${entry.dataset?.length}`;
+          if (existingSet.has(key)) { skip++; if (onProgress) onProgress(ok+skip+fail, localEntries.length); continue; }
           if (!entry.dataset) { fail++; continue; }
           try {
             const rows = normalizeRows(entry.dataset);
@@ -2894,67 +2877,84 @@
             const anomalies = detectAnomalies(rows);
             const m = _computeMetricsStatic({ rows, skuRows, anomalies });
             const id = await this.saveImport(entry.dataset, entry.fileName, m);
-            if (id) ok++; else fail++;
-          } catch (e) { fail++; }
-          if (onProgress) onProgress(ok + fail, localEntries.length);
+            if (id) {
+              await Promise.all([
+                this.pushSkuStats(id, skuRows),
+                this.pushAnomalies(id, anomalies)
+              ]);
+              ok++;
+            } else { fail++; }
+          } catch(e) { console.error("[SB] syncHistory entry:", e.message); fail++; }
+          if (onProgress) onProgress(ok+skip+fail, localEntries.length);
         }
+        console.log(`[SB] Migration terminée — ok:${ok} skip:${skip} fail:${fail}`);
         _apiCache.invalidateAll();
         state.sbKpiHistory = null; state.sbImports = null;
-        return { ok, fail };
+        return { ok, skip, fail };
       }
     };
 
-    // Calcule les métriques sans toucher au state global (pour syncHistory)
+    // Métriques statiques pour syncHistory (sans toucher au state global)
     function _computeMetricsStatic(s) {
-      const rows = s.rows, skuRows = s.skuRows, anomalies = s.anomalies;
+      const { rows, skuRows, anomalies } = s;
       return {
         physical: rows.filter(isPhysicalStock).length,
-        owned: rows.filter(isOwnedStock).length,
-        standby: rows.filter(isStandbyStock).length,
-        available: rows.filter(isAvailable).length,
-        low: skuRows.filter(r => r.alert === "low" && r.names && r.names.size > 0 && !r.isFactice).length,
-        critical: skuRows.filter(r => r.alert === "critical").length,
-        rupture: skuRows.filter(r => r.alert === "rupture").length,
-        project: rows.filter(r => r.STATUT === "PROJET" && r.EMPLACEMENT === "KUBE DESIGN").length,
-        hs: rows.filter(r => r.STATUT === "HS").length,
-        incoming: rows.filter(r => r.STATUT === "LIVRAISON" && r.EXPEDITEUR !== "KUBE DESIGN").length,
+        owned:    rows.filter(isOwnedStock).length,
+        standby:  rows.filter(isStandbyStock).length,
+        available:rows.filter(isAvailable).length,
+        low:      skuRows.filter(r => r.alert==="low" && r.names?.size>0 && !r.isFactice).length,
+        critical: skuRows.filter(r => r.alert==="critical").length,
+        rupture:  skuRows.filter(r => r.alert==="rupture").length,
+        project:  rows.filter(r => r.STATUT==="PROJET" && r.EMPLACEMENT==="KUBE DESIGN").length,
+        hs:       rows.filter(r => r.STATUT==="HS").length,
+        incoming: rows.filter(r => r.STATUT==="LIVRAISON" && r.EXPEDITEUR!=="KUBE DESIGN").length,
         anomalies: anomalies.length
       };
     }
 
     // -------------------------------------------------------------------
-    // [UI] Indicateur de synchronisation dans le header
+    // UI — Indicateur de synchronisation
     // -------------------------------------------------------------------
-    function updateSyncIndicator(state_) {
+    function updateSyncIndicator(s) {
       const el = document.getElementById("syncIndicator");
       if (!el) return;
       const map = {
-        offline:    { text: "Non connecté", color: "#8a9bb0" },
-        connecting: { text: "Connexion…",   color: "#d98200" },
-        synced:     { text: "Supabase sync", color: "#2e7d32" },
-        error:      { text: "Erreur sync",   color: "#c62828" },
-        uploading:  { text: "Upload…",       color: "#0b5cab" }
+        offline:    ["● Mode local",         "#8a9bb0"],
+        connecting: ["● Connexion…",         "#d98200"],
+        synced:     ["● Supabase sync",      "#2e7d32"],
+        error:      ["● Erreur sync",        "#c62828"],
+        uploading:  ["● Envoi en cours…",    "#0b5cab"]
       };
-      const s = map[state_] || map.offline;
-      el.textContent = "● " + s.text;
-      el.style.color = s.color;
+      const [text, color] = map[s] || map.offline;
+      el.textContent = text; el.style.color = color;
+    }
+
+    // Journal affiché dans le panneau
+    function sbLog(msg) {
+      const el = document.getElementById("sbLog");
+      if (!el) return;
+      const line = document.createElement("div");
+      line.textContent = `${new Date().toLocaleTimeString("fr-FR")} ${msg}`;
+      line.style.cssText = "padding:2px 0;border-bottom:1px solid #f0f2f4;font-size:10px";
+      el.insertBefore(line, el.firstChild);
+      if (el.children.length > 8) el.removeChild(el.lastChild);
     }
 
     // -------------------------------------------------------------------
-    // [UI] Panneau de configuration Supabase
+    // UI — Panneau Supabase
     // -------------------------------------------------------------------
     (function initSbPanel() {
-      // Indicateur dans le header
+      SB._initReady();
+
       const indicator = document.createElement("span");
       indicator.id = "syncIndicator";
-      indicator.style.cssText = "font-size:11px;margin-right:8px;font-weight:600;cursor:pointer;";
-      indicator.title = "Statut synchronisation Supabase";
+      indicator.style.cssText = "font-size:11px;margin-right:8px;font-weight:600;cursor:pointer;user-select:none";
+      indicator.title = "Cliquer pour ouvrir le panneau Supabase";
       updateSyncIndicator("offline");
 
       const btn = document.createElement("button");
       btn.type = "button"; btn.id = "sbConfigBtn";
       btn.textContent = "⚙ Supabase";
-      btn.title = "Configurer la synchronisation Supabase";
       btn.style.cssText = "font-size:11px;padding:4px 8px;opacity:0.7;";
 
       const brandRow = document.querySelector(".brand-row > div:last-child");
@@ -2962,41 +2962,46 @@
 
       const panel = document.createElement("div");
       panel.id = "sbPanel";
-      panel.style.cssText = "display:none;position:fixed;bottom:16px;right:16px;width:340px;background:#fff;border:1px solid #d9e0e7;border-radius:10px;padding:18px;box-shadow:0 8px 32px rgba(0,0,0,0.14);z-index:1000;font-size:13px;";
+      panel.style.cssText = "display:none;position:fixed;bottom:16px;right:16px;width:360px;background:#fff;border:1px solid #d9e0e7;border-radius:10px;padding:16px;box-shadow:0 8px 32px rgba(0,0,0,0.16);z-index:9999;font-size:13px;";
       panel.innerHTML = `
-        <div style="font-weight:700;margin-bottom:4px;color:#17202a">Synchronisation Supabase</div>
-        <div style="font-size:11px;color:#667385;margin-bottom:12px">Partagez les imports entre tous vos appareils</div>
-        <div style="margin-bottom:8px">
+        <div style="font-weight:700;margin-bottom:2px;color:#17202a">Synchronisation Supabase</div>
+        <div style="font-size:11px;color:#667385;margin-bottom:10px">Imports partagés entre tous les appareils</div>
+        <div style="margin-bottom:7px">
           <label style="font-size:11px;color:#667385">Project URL</label>
-          <input id="sbUrl" type="text" placeholder="https://xxxx.supabase.co" style="width:100%;margin-top:3px;padding:6px 8px;border:1px solid #d9e0e7;border-radius:6px;font-size:12px;box-sizing:border-box">
+          <input id="sbUrl" type="text" placeholder="https://xxxx.supabase.co" style="width:100%;margin-top:2px;padding:5px 8px;border:1px solid #d9e0e7;border-radius:6px;font-size:12px;box-sizing:border-box">
         </div>
-        <div style="margin-bottom:12px">
-          <label style="font-size:11px;color:#667385">Anon Key</label>
-          <input id="sbKey" type="password" placeholder="eyJhbGciOiJIUzI1NiJ9..." style="width:100%;margin-top:3px;padding:6px 8px;border:1px solid #d9e0e7;border-radius:6px;font-size:12px;box-sizing:border-box">
+        <div style="margin-bottom:10px">
+          <label style="font-size:11px;color:#667385">Anon Key (clé publique uniquement)</label>
+          <input id="sbKey" type="password" placeholder="eyJhbGciOiJIUzI1NiJ9… ou sb_publishable_…" style="width:100%;margin-top:2px;padding:5px 8px;border:1px solid #d9e0e7;border-radius:6px;font-size:12px;box-sizing:border-box">
         </div>
-        <div style="display:flex;gap:8px;margin-bottom:10px">
+        <div style="display:flex;gap:6px;margin-bottom:8px">
           <button id="sbConnect" type="button" style="flex:1;background:#0b5cab;color:#fff;border:0;border-radius:6px;padding:7px;cursor:pointer;font-size:12px">Connecter</button>
-          <button id="sbDisconnect" type="button" style="flex:1;background:#f4f6f8;border:1px solid #d9e0e7;border-radius:6px;padding:7px;cursor:pointer;font-size:12px">Déconnecter</button>
+          <button id="sbDisconnect" type="button" style="background:#f4f6f8;border:1px solid #d9e0e7;border-radius:6px;padding:7px 10px;cursor:pointer;font-size:12px">Déco</button>
           <button id="sbClose" type="button" style="background:#f4f6f8;border:1px solid #d9e0e7;border-radius:6px;padding:7px 10px;cursor:pointer;font-size:12px">✕</button>
         </div>
-        <div id="sbStatus" style="font-size:11px;color:#667385;margin-bottom:8px"></div>
-        <div style="border-top:1px solid #e8edf2;padding-top:10px;display:flex;gap:8px;align-items:center">
-          <button id="sbMigrate" type="button" style="font-size:11px;background:#f4f6f8;border:1px solid #d9e0e7;border-radius:6px;padding:5px 10px;cursor:pointer" title="Envoyer les imports locaux (IndexedDB) vers Supabase">Migrer imports locaux →</button>
+        <div id="sbStatus" style="font-size:11px;margin-bottom:8px;min-height:16px"></div>
+        <div style="border-top:1px solid #e8edf2;padding-top:8px;display:flex;gap:6px;align-items:center;margin-bottom:8px">
+          <button id="sbMigrate" type="button" style="font-size:11px;background:#f4f6f8;border:1px solid #d9e0e7;border-radius:6px;padding:5px 10px;cursor:pointer">Migrer imports locaux →</button>
           <span id="sbMigrateStatus" style="font-size:11px;color:#667385"></span>
         </div>
-        <div style="margin-top:8px;font-size:10px;color:#aaa">Schéma SQL : supabase-schema.sql</div>
+        <div style="border-top:1px solid #e8edf2;padding-top:6px">
+          <div style="font-size:10px;color:#8a9bb0;margin-bottom:4px">Journal</div>
+          <div id="sbLog" style="font-family:monospace;font-size:10px;color:#4a5568;max-height:100px;overflow-y:auto"></div>
+        </div>
       `;
       document.body.appendChild(panel);
 
       const setStatus = (msg, ok) => {
         const el = document.getElementById("sbStatus");
-        if (el) { el.textContent = msg; el.style.color = ok ? "#2e7d32" : ok === false ? "#c62828" : "#667385"; }
+        if (!el) return;
+        el.textContent = msg;
+        el.style.color = ok===true ? "#2e7d32" : ok===false ? "#c62828" : "#667385";
       };
 
       btn.addEventListener("click", () => {
         panel.style.display = panel.style.display === "none" ? "block" : "none";
-        if (SB.cfg) document.getElementById("sbUrl").value = SB.cfg.url || "";
-        if (SB.client) setStatus("Connecté — imports synchronisés automatiquement", true);
+        if (SB.cfg?.url) document.getElementById("sbUrl").value = SB.cfg.url;
+        if (SB.client) setStatus("Connecté — synchronisation active", true);
       });
       indicator.addEventListener("click", () => btn.click());
       document.getElementById("sbClose").addEventListener("click", () => { panel.style.display = "none"; });
@@ -3007,10 +3012,13 @@
         if (!url || !key) { setStatus("URL et clé requis", false); return; }
         setStatus("Connexion en cours…", null);
         const ok = await SB.connect(url, key);
-        setStatus(ok ? "Connecté — imports synchronisés automatiquement" : "Échec — vérifiez l'URL et la clé", ok);
         if (ok) {
+          setStatus("Connecté — synchronisation active", true);
           btn.style.opacity = "1";
           state.sbKpiHistory = null; state.sbImports = null;
+          SB.fetchKpis().then(rows => { state.sbKpiHistory = rows || []; });
+        } else {
+          setStatus("Échec connexion — vérifier URL, clé et RLS Supabase", false);
         }
       });
 
@@ -3022,30 +3030,37 @@
         document.getElementById("sbKey").value = "";
       });
 
-      // Migration IndexedDB → Supabase
       document.getElementById("sbMigrate").addEventListener("click", async () => {
-        if (!SB.client) { setStatus("Connectez-vous d'abord à Supabase", false); return; }
+        if (!SB.client) { setStatus("Connectez-vous d'abord", false); return; }
         const ms = document.getElementById("sbMigrateStatus");
-        ms.textContent = "Migration en cours…";
-        const { ok, fail } = await SB.syncHistory((done, total) => {
-          ms.textContent = `${done}/${total} importés…`;
+        ms.textContent = "Migration…";
+        const { ok, skip, fail } = await SB.syncHistory((done, total) => {
+          ms.textContent = `${done}/${total}…`;
         });
-        ms.textContent = `${ok} migrés${fail ? `, ${fail} erreurs` : ""}`;
+        ms.textContent = `${ok} envoyés${skip?" · "+skip+" déjà sync":""}${fail?" · "+fail+" erreurs":""}`;
         if (ok > 0 && state.currentTab === "history") {
           state.sbKpiHistory = null;
           renderAdvancedPage("history");
         }
       });
 
-      // Restaurer la connexion existante au démarrage
+      // Connexion automatique au démarrage
       if (SB.load()) {
+        console.log("[SB] Auto-connexion au démarrage…");
         SB.connect(SB.cfg.url, SB.cfg.key).then(ok => {
           if (ok) {
             btn.style.opacity = "1";
-            // Pré-charger l'historique KPI en arrière-plan
-            SB.fetchKpis().then(rows => { state.sbKpiHistory = rows || []; });
+            SB.fetchKpis().then(rows => {
+              state.sbKpiHistory = rows || [];
+              console.log(`[SB] Historique KPI chargé: ${(rows||[]).length} entrées`);
+            });
+          } else {
+            console.warn("[SB] Auto-connexion échouée");
           }
         });
+      } else {
+        console.log("[SB] Pas de config Supabase — mode local");
+        if (this._readyResolve) { this._readyResolve(false); }
       }
     })();
   </script>
