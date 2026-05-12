@@ -1,1 +1,37 @@
+# ── Outils IA locaux ────────────────────────────────────────────────
+.claude/
+.minimax/
 .aider*
+
+# ── Éditeurs ────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.user
+
+# ── Variables d'environnement / secrets ─────────────────────────────
+.env
+.env.local
+.env.development
+.env.production
+.env.*.local
+
+# ── Dépendances ──────────────────────────────────────────────────────
+node_modules/
+
+# ── Builds ───────────────────────────────────────────────────────────
+dist/
+build/
+out/
+
+# ── Couverture de tests ──────────────────────────────────────────────
+coverage/
+
+# ── OS ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Logs ─────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
