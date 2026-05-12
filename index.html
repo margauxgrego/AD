@@ -2030,38 +2030,37 @@
     }
 
     async function initRuptureChart() {
-      const container = document.getElementById("ruptureChartContainer");
-      if (!container) return;
+      // Indiquer le chargement — ref fraîche avant l'await
+      const c0 = document.getElementById("ruptureChartContainer");
+      if (!c0) return;
+      c0.innerHTML = `<span style="color:var(--muted);font-size:12px">Chargement historique…</span>`;
 
-      const setMsg = (html) => { container.innerHTML = html; };
-      setMsg(`<span style="color:var(--muted);font-size:12px">Chargement historique…</span>`);
+      if (!SB.client) {
+        const c = document.getElementById("ruptureChartContainer");
+        if (c) c.innerHTML = `<span style="color:var(--muted);font-size:12px">Non connecté à Supabase</span>`;
+        return;
+      }
 
       console.log("%c[RUPTURE CHART INIT]", "color:#6a1b9a;font-weight:bold", "Requête imports + kpi_snapshots…");
 
-      if (!SB.client) { setMsg(`<span style="color:var(--muted);font-size:12px">Non connecté à Supabase</span>`); return; }
-
       let histPoints = [];
       try {
-        // 1. Requête imports (toujours peuplé)
-        const { data: imps, error: e1 } = await SB.client
-          .from("imports")
-          .select("id, imported_at, file_name, original_filename")
-          .order("imported_at", { ascending: true })
-          .limit(50);
-        if (e1) throw new Error("imports: " + e1.message);
-        console.log("[RUPTURE CHART INIT] imports:", imps?.length ?? 0, "lignes");
+        // Requêtes parallèles pour gagner du temps
+        const [r1, r2] = await Promise.all([
+          SB.client.from("imports")
+            .select("id, imported_at, file_name, original_filename")
+            .order("imported_at", { ascending: true }).limit(50),
+          SB.client.from("kpi_snapshots")
+            .select("import_id, alert_rupture").limit(50)
+        ]);
 
-        // 2. Requête kpi_snapshots (optionnel — peut être vide)
-        const { data: snaps } = await SB.client
-          .from("kpi_snapshots")
-          .select("import_id, alert_rupture")
-          .limit(50);
+        if (r1.error) throw new Error("imports: " + r1.error.message);
+        console.log("[RUPTURE CHART INIT] imports:", r1.data?.length ?? 0, "| kpi_snapshots:", r2.data?.length ?? 0);
+
         const snapMap = {};
-        (snaps || []).forEach(s => { snapMap[s.import_id] = s.alert_rupture ?? 0; });
-        console.log("[RUPTURE CHART INIT] kpi_snapshots:", Object.keys(snapMap).length, "entrées");
+        (r2.data || []).forEach(s => { snapMap[s.import_id] = s.alert_rupture ?? 0; });
 
-        // 3. Jointure JS — date depuis imports, rupture depuis kpi_snapshots (0 si absent)
-        histPoints = (imps || []).map(imp => ({
+        histPoints = (r1.data || []).map(imp => ({
           date: new Date(imp.imported_at),
           rupture: snapMap[imp.id] ?? 0,
           label: imp.original_filename || imp.file_name || ""
@@ -2069,21 +2068,27 @@
 
       } catch(e) {
         console.error("[RUPTURE CHART INIT] Erreur:", e.message);
-        setMsg(`<span style="color:var(--red);font-size:12px">Erreur : ${e.message}</span>`);
+        const c = document.getElementById("ruptureChartContainer");
+        if (c) c.innerHTML = `<span style="color:var(--red);font-size:12px">Erreur : ${e.message}</span>`;
         return;
       }
 
       console.log("%c[RUPTURE HISTORY READY]", "color:#2e7d32;font-weight:bold",
         `${histPoints.length} points`, histPoints.map(p => `${p.date.toLocaleDateString("fr-FR")}→${p.rupture}`).join(" | "));
 
+      // Référence FRAÎCHE après les awaits — le DOM a pu être recréé entre-temps
+      const container = document.getElementById("ruptureChartContainer");
+      if (!container) return;
+
       if (histPoints.length < 2) {
-        setMsg(`<span style="color:var(--muted);font-size:12px">Pas assez d'historique — au moins 2 imports requis</span>`);
+        container.innerHTML = `<span style="color:var(--muted);font-size:12px">Pas assez d'historique — au moins 2 imports requis</span>`;
         return;
       }
 
-      // Recréer le canvas dans le container
+      // Recréer canvas dans le container courant du DOM
       container.innerHTML = `<canvas id="ruptureChart" style="height:220px;width:100%"></canvas>`;
       const canvas = document.getElementById("ruptureChart");
+      if (!canvas) { console.error("[RUPTURE CHART INIT] canvas introuvable après insertion"); return; }
 
       if (state.charts["ruptureChart"]) {
         state.charts["ruptureChart"].destroy();
@@ -3535,10 +3540,7 @@
             state.sbKpiHistory = rows || [];
             console.log(`[SB] Historique chargé: ${(rows||[]).length} entrées`);
             if (state.currentTab === "history") renderAdvancedPage("history");
-            // Re-rendre le dashboard si actif — données historiques nécessaires au graphique ruptures
-            if (state.currentTab === "dashboard" && state.rows.length > 0) {
-              renderAdvancedPage("dashboard");
-            }
+            // initRuptureChart fait sa propre requête — pas besoin de re-render ici
           });
           // Auto-restore dernier import — toujours, pour sync multi-PC
           autoLoadLastImport();
