@@ -1241,19 +1241,19 @@
 
     function detectAnomalies(rows) {
       const anomalies = [];
-      // Construire la référence SKU → nom canonique (vote majoritaire, min 10 occurrences, RDU/LDU uniquement)
-      const skuNameCount = new Map();
+      // Construire la référence MARKETING_NAME → SKU canonique (vote majoritaire, min 10 occurrences, RDU/LDU uniquement)
+      const nameSkuCount = new Map();
       rows.forEach(item => {
         if ((item.TYPE !== "RDU" && item.TYPE !== "LDU") || !item.SKU || !item.MARKETING_NAME || isFactice(item)) return;
-        if (!skuNameCount.has(item.SKU)) skuNameCount.set(item.SKU, new Map());
-        const nm = skuNameCount.get(item.SKU);
-        nm.set(item.MARKETING_NAME, (nm.get(item.MARKETING_NAME) || 0) + 1);
+        if (!nameSkuCount.has(item.MARKETING_NAME)) nameSkuCount.set(item.MARKETING_NAME, new Map());
+        const sm = nameSkuCount.get(item.MARKETING_NAME);
+        sm.set(item.SKU, (sm.get(item.SKU) || 0) + 1);
       });
-      const skuCanonical = new Map();
-      skuNameCount.forEach((nm, sku) => {
-        let bestName = null, bestCount = 0;
-        nm.forEach((count, name) => { if (count > bestCount) { bestName = name; bestCount = count; } });
-        if (bestCount >= 10) skuCanonical.set(sku, { name: bestName, count: bestCount });
+      const nameCanonical = new Map();
+      nameSkuCount.forEach((sm, name) => {
+        let bestSku = null, bestCount = 0;
+        sm.forEach((count, sku) => { if (count > bestCount) { bestSku = sku; bestCount = count; } });
+        if (bestCount >= 10) nameCanonical.set(name, { sku: bestSku, count: bestCount });
       });
       rows.forEach((item) => {
         if (item.STATUT === "MAGASIN" && item.EMPLACEMENT !== "MAGASIN") anomalies.push(anomaly("Statut magasin incohérent", item, "STATUT = MAGASIN mais EMPLACEMENT différent de MAGASIN"));
@@ -1270,9 +1270,9 @@
         if (item.STATUT === "STANDBY" && item.EMPLACEMENT !== "KUBE DESIGN") anomalies.push(anomaly("Standby hors Kube Design", item, "STATUT = STANDBY mais EMPLACEMENT différent de KUBE DESIGN"));
         if (item.STATUT === "HS" && item.EMPLACEMENT !== "KUBE DESIGN" && item.EMPLACEMENT !== "LIVRAISON") anomalies.push(anomaly("HS hors Kube/Livraison", item, `STATUT = HS mais EMPLACEMENT = ${item.EMPLACEMENT || "vide"}`));
         if (item.STATUT === "PROJET" && item.EMPLACEMENT !== "KUBE DESIGN") anomalies.push(anomaly("Projet hors Kube Design", item, `STATUT = PROJET mais EMPLACEMENT = ${item.EMPLACEMENT || "vide"}`));
-        if ((item.TYPE === "RDU" || item.TYPE === "LDU") && item.SKU && item.MARKETING_NAME && !isFactice(item) && skuCanonical.has(item.SKU)) {
-          const ref = skuCanonical.get(item.SKU);
-          if (item.MARKETING_NAME !== ref.name) anomalies.push(anomaly("SKU / Marketing incohérent", item, `SKU ${item.SKU} → nom attendu "${ref.name}" (${ref.count} fois), trouvé "${item.MARKETING_NAME}"`));
+        if ((item.TYPE === "RDU" || item.TYPE === "LDU") && item.SKU && item.MARKETING_NAME && !isFactice(item) && nameCanonical.has(item.MARKETING_NAME)) {
+          const ref = nameCanonical.get(item.MARKETING_NAME);
+          if (item.SKU !== ref.sku) anomalies.push(anomaly("SKU / Marketing incohérent", item, `"${item.MARKETING_NAME}" → SKU attendu "${ref.sku}" (${ref.count} fois), trouvé "${item.SKU}"`));
         }
       });
       ["IMEI", "SN"].forEach((column) => {
@@ -4935,6 +4935,22 @@
         if (this._readyResolve) { this._readyResolve(false); }
         hideLoadingOverlay();
       }
+    })();
+  </script>
+  <script>
+    (function () {
+      let knownEtag = null;
+      async function checkVersion() {
+        try {
+          const res = await fetch(location.href, { method: "HEAD", cache: "no-cache" });
+          const etag = res.headers.get("etag") || res.headers.get("last-modified");
+          if (!etag) return;
+          if (knownEtag === null) { knownEtag = etag; return; }
+          if (etag !== knownEtag) location.reload();
+        } catch {}
+      }
+      checkVersion();
+      setInterval(checkVersion, 60000);
     })();
   </script>
 </body>
