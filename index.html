@@ -14,8 +14,12 @@
       document.head.appendChild(a);
     })();
   </script>
+  <link rel="preload" href="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" as="script">
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <style>
     :root {
       --bg: #f4f6f8;
@@ -169,6 +173,20 @@
       white-space: nowrap;
     }
     .btn-reset:hover { background: #c7d8f8; }
+    @keyframes kpi-pulse { 0%,100% { box-shadow:0 0 0 0 rgba(200,40,40,0.35) } 50% { box-shadow:0 0 0 16px rgba(200,40,40,0) } }
+    .kpi-pulse { animation:kpi-pulse 1.8s ease-in-out infinite; background:#fdecea !important; border-color:#e57373 !important; }
+    .row-imei-highlight td { background:#fff176 !important; transition:background 1s; }
+    tr.row-no-date td { color: #c0392b99; }
+    tr.row-rupture-projet td { color: #c0392bcc; }
+    #toast { position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1a3f5c;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:500;box-shadow:0 4px 16px rgba(0,0,0,0.2);opacity:0;transition:opacity .3s,transform .3s;pointer-events:none;z-index:9999;white-space:nowrap }
+    #toast.show { opacity:1;transform:translateX(-50%) translateY(0) }
+    #loadingOverlay { display:none;position:fixed;inset:0;pointer-events:none;z-index:9998;align-items:center;justify-content:center;flex-direction:column;gap:12px;background:rgba(255,255,255,0.55);backdrop-filter:blur(2px) }
+    #loadingOverlay.show { display:flex }
+    #loadingOverlay .loading-spinner { width:36px;height:36px;border:3px solid #e0e0e0;border-top-color:#0070C0;border-radius:50%;animation:spin .8s linear infinite }
+    #loadingOverlay .loading-text { font-size:15px;font-weight:600;color:#1a3f5c;background:rgba(255,255,255,0.92);padding:10px 20px;border-radius:8px;box-shadow:0 2px 12px rgba(0,0,0,0.1) }
+    @keyframes spin { to { transform:rotate(360deg) } }
+    .btn-reset.active { background:#c62828;border-color:#c62828;color:#fff; }
+    .btn-reset.active:hover { background:#b71c1c;border-color:#b71c1c; }
 
     .file-meta {
       color: var(--muted);
@@ -584,6 +602,8 @@
     .adv-drill-hint { font-size: 10px; color: var(--blue); margin-top: 6px; opacity: 0.7; }
     .adv-table tr.clickable-row { cursor: pointer; }
     .adv-table tr.clickable-row:hover td { background: #f0f7ff; }
+    tr.clickable-row { cursor: pointer; }
+    tr.clickable-row:hover td { background: #f0f7ff; }
 
     @media (max-width: 1100px) {
       .brand-row { grid-template-columns: 1fr; }
@@ -601,11 +621,72 @@
 
     @media (max-width: 720px) {
       .workspace, .brand-row { padding-left: 10px; padding-right: 10px; }
-      .kpi-grid { padding-left: 10px; padding-right: 10px; }
+      .kpi-grid { padding-left: 10px; padding-right: 10px; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+      .kpi { min-width: 0; padding: 6px 8px; }
       .charts { grid-template-columns: 1fr; }
       .panel-head, .import-band { grid-template-columns: 1fr; }
-      .tools { justify-content: flex-start; }
+      .tools { justify-content: flex-start; flex-wrap: wrap; gap: 6px; }
+      .tools input, .tools select { font-size: 16px; }
+      .drawer { width: 100vw; max-width: 100vw; border-radius: 0; }
+      .adv-card { padding: 10px; }
+      .tab { min-height: 44px; }
     }
+
+    @media (max-width: 480px) {
+      .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+      .kpi { padding: 5px 6px; }
+      .kpi-val { font-size: 18px; }
+      .kpi-label { font-size: 10px; }
+      .adv-grid-2, .adv-grid-3, .adv-grid-4 { grid-template-columns: 1fr; }
+      .adv-card { padding: 8px; }
+      .tools .btn, .tools button { min-height: 36px; font-size: 12px; }
+      .brand-row h2 { font-size: 15px; }
+      .file-meta { font-size: 11px; }
+    }
+
+    /* ── Paramètres livraisons ─────────────────────────────────── */
+    .ds-tabs { display:flex; gap:0; margin-bottom:14px; border-bottom:2px solid var(--line); flex-wrap:wrap; }
+    .ds-tab { padding:8px 18px; border:none; background:transparent; cursor:pointer; font-size:13px; font-weight:500; color:var(--muted); border-bottom:2px solid transparent; margin-bottom:-2px; transition:color .15s; }
+    .ds-tab.active { color:var(--blue); border-bottom-color:var(--blue); }
+    .ds-tab:hover:not(.active) { color:var(--text); }
+    .ds-year-block { margin-bottom:16px; }
+    .ds-year-header { display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--line); cursor:pointer; }
+    .ds-year-label { font-weight:600; font-size:14px; flex:1; }
+    .ds-months { padding:10px 0 4px 32px; display:flex; flex-wrap:wrap; gap:8px; }
+    .ds-month-item { display:flex; align-items:center; gap:8px; padding:6px 12px; border:1px solid var(--line); border-radius:20px; background:var(--bg); font-size:12px; transition:opacity .15s; }
+    .ds-month-item.excluded { opacity:0.45; }
+    .ds-list-item { display:flex; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid var(--line); }
+    .ds-list-item:last-child { border-bottom:none; }
+    .ds-list-item.excluded { opacity:0.5; }
+    .ds-list-name { flex:1; font-size:13px; }
+    .ds-count-badge { font-size:11px; color:var(--muted); }
+
+    /* ── Paramètres ruptures ───────────────────────────────────── */
+    .rs-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:16px; }
+    .rs-badges { display:flex; gap:8px; flex-wrap:wrap; }
+    .rs-badge { padding:4px 12px; border-radius:20px; font-size:12px; font-weight:600; }
+    .rs-badge.active { background:#e3f2e1; color:#2e7d32; }
+    .rs-badge.excluded { background:#fce8e8; color:#c62828; }
+    .rs-toolbar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:14px; }
+    .rs-search { flex:1; min-width:180px; max-width:320px; padding:7px 12px; border:1px solid var(--line); border-radius:6px; font-size:13px; background:var(--bg); color:var(--text); }
+    .rs-search:focus { outline:none; border-color:var(--blue); }
+    .rs-table { width:100%; border-collapse:collapse; font-size:13px; }
+    .rs-table th { background:#f0f7ff; color:var(--blue); font-weight:600; padding:9px 12px; text-align:left; border-bottom:2px solid #d0e6f8; position:sticky; top:0; z-index:1; }
+    .rs-table td { padding:9px 12px; border-bottom:1px solid var(--line); vertical-align:middle; }
+    .rs-table tr:hover td { background:#f8fbff; }
+    .rs-table tr.excluded td { opacity:0.5; }
+    .rs-table tr.excluded td:first-child { opacity:1; }
+    .rs-toggle-wrap { display:flex; align-items:center; gap:8px; }
+    .rs-toggle { position:relative; display:inline-block; width:38px; height:22px; flex-shrink:0; }
+    .rs-toggle input { opacity:0; width:0; height:0; }
+    .rs-toggle-slider { position:absolute; inset:0; background:#ccc; border-radius:22px; cursor:pointer; transition:background .2s; }
+    .rs-toggle-slider:before { content:""; position:absolute; width:16px; height:16px; left:3px; bottom:3px; background:#fff; border-radius:50%; transition:transform .2s; }
+    .rs-toggle input:checked + .rs-toggle-slider { background:#2e7d32; }
+    .rs-toggle input:checked + .rs-toggle-slider:before { transform:translateX(16px); }
+    .rs-save-bar { position:sticky; bottom:0; background:var(--panel); border-top:1px solid var(--line); padding:12px 16px; display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:16px; border-radius:0 0 10px 10px; }
+    .rs-save-status { font-size:12px; color:var(--muted); }
+    .rs-save-status.dirty { color:#d98200; font-weight:600; }
+    .rs-save-status.saved { color:#2e7d32; font-weight:600; }
 
     .hist-backdrop {
       position: fixed; inset: 0;
@@ -663,8 +744,8 @@
         </div>
         <div>
           <div class="file-meta" id="fileMeta">Données de démonstration chargées</div>
-          <button id="reportingBtn" class="primary" type="button">Générer l'AD STOCK KUBE</button>
-          <button id="histBtn" type="button">📋 Historique</button>
+          <button id="reportingBtn" class="primary" type="button">AD STOCK KUBE avec détail</button>
+          <button id="reportingBtnSimple" class="primary" type="button">AD STOCK KUBE sans détail</button>
           <button id="newImportBtn" class="primary" type="button">Nouvel import SODA</button>
         </div>
       </div>
@@ -682,18 +763,10 @@
 
       <section id="pageIntro" class="page-intro"></section>
 
+      <div id="importStatusBadge" style="display:none;font-size:12px;font-weight:600;padding:5px 12px;border-radius:6px;margin-bottom:8px;width:fit-content"></div>
       <section id="charts" class="charts">
-        <div class="chart-box" data-chart-page="stock">
-          <div class="chart-title">Entrées par expéditeur</div>
-          <div class="chart-wrap"><canvas id="standbyChart"></canvas></div>
-        </div>
-
-        <div class="chart-box" data-chart-page="stock">
-          <div class="chart-title">Top enseignes destinataires</div>
-          <div class="chart-wrap"><canvas id="brandChart"></canvas></div>
-        </div>
-        <div class="chart-box" data-chart-page="stock">
-          <div class="chart-title">Répartition par gamme</div>
+        <div class="chart-box" data-chart-page="stock" style="grid-column:1/-1">
+          <div class="chart-title" style="text-align:center">Stock par gamme à Kube Design (HS exclus)</div>
           <div class="chart-wrap"><canvas id="rangeChart"></canvas></div>
         </div>
       </section>
@@ -712,6 +785,8 @@
   </div>
   </div>
 
+  <div id="toast"></div>
+  <div id="loadingOverlay" class="show"><div class="loading-spinner"></div><div class="loading-text">Récupération des données…</div></div>
   <div id="histBackdrop" class="hist-backdrop">
     <div class="hist-modal">
       <div class="hist-head">
@@ -775,6 +850,8 @@
       row("18", "BUDS", "BUDS 3 PRO", "RDU", "BLANC", "Galaxy Buds3 Pro Blanc", "SM-R630NZWAEUC", "", "R630001", "STANDBY", "KUBE DESIGN", "ICP", "18/04/2026", "FNAC", "FNAC TOURS", "JULIEN CDM W19 2026", "COMPTOIR", "")
     ];
 
+    if (window.ChartDataLabels) Chart.register(window.ChartDataLabels);
+
     const state = {
       rawRows: [],
       rows: [],
@@ -785,7 +862,7 @@
       filteredRows: [],
       currentTab: "dashboard",
       page: 1,
-      sort: { key: "__index", dir: "asc" },
+      sort: { key: "ID", dir: "desc" },
       techSearch: "",
       detailSearch: "",
       detailStatut: "",
@@ -797,6 +874,9 @@
       livraisonSearch: "",
       livraisonEnseigne: "",
       livraisonExpediteur: "",
+      livraisonMonthFilter: "",
+      ruptureChartPeriod: "week",
+      anomalyChartPeriod: "week",
       fileName: "Données de démonstration",
       importedAt: new Date(),
       charts: {},
@@ -804,6 +884,14 @@
       drawerTitle: "",
       sbKpiHistory: null,   // null=non chargé, []=vide, [...]=données Supabase
       sbImports: null,      // null=non chargé, []=vide, [...]=liste imports Supabase
+      ruptureExclusions: new Set(),  // Set<canonicalName> des produits exclus des ruptures
+      ruptureSettingsSearch: "",
+      hsLivraisonExclusions: { dates: new Set() },
+      ruptureStatusFilter: "",  // "" | "active" | "excluded"
+      ruptureGammeFilter: "",
+      deliveryExclusions: { dates: new Set(), shippers: new Set(), stores: new Set(), gammes: new Set() },
+      deliverySettingsTab: "dates",
+      deliverySettingsSearch: "",
     };
 
     const tabs = [
@@ -811,12 +899,15 @@
       { id: "history", label: "Historique", adv: true },
       { id: "detail", label: "SODA" },
       { id: "livraisons", label: "Livraisons" },
-      { id: "low", label: "Stock 5 à 15" },
+      { id: "low", label: "Stock 5 à 10" },
       { id: "critical", label: "Stock 0 à 5" },
       { id: "rupture", label: "Ruptures" },
-      { id: "anomalies", label: "Anomalies" }
+      { id: "anomalies", label: "Anomalies" },
+      { id: "ruptureSettings", label: "Paramètres ruptures", settings: true },
+      { id: "deliverySettings", label: "Paramètres livraisons", settings: true },
+      { id: "hsLivraisonSettings", label: "Paramètres HS Livraison", settings: true },
     ];
-    const ADV_TABS = new Set(["dashboard", "history"]);
+    const ADV_TABS = new Set(["dashboard", "history", "ruptureSettings", "deliverySettings", "hsLivraisonSettings"]);
 
     const columns = {
       sku: [
@@ -829,7 +920,7 @@
       low: [["canonicalName", "Produit"], ["gamme", "Gamme"], ["qtyKube", "Stock Kube"]],
       critical: [["canonicalName", "Produit"], ["gamme", "Gamme"], ["qtyKube", "Stock Kube"]],
       rupture: [["canonicalName", "Produit"], ["gamme", "Gamme"], ["qtyKube", "Stock Kube"], ["ruptureStandby", "Standby"], ["ruptureLivraison", "Livraison"], ["ruptureMagasin", "Magasin"], ["ruptureVol", "Vol"], ["ruptureProjet", "Projet"]],
-      anomalies: [["dismiss", "✓"], ["type", "Type"], ["ID", "ID"], ["SKU", "SKU"], ["STATUT", "Statut"], ["EMPLACEMENT", "Emplacement"], ["detail", "Détail"]],
+      anomalies: [["type", "Type"], ["ID", "ID"], ["MARKETING_NAME", "Marketing Name"], ["SKU", "SKU"], ["IMEI", "IMEI"], ["SN", "SN"], ["STATUT", "Statut"], ["EMPLACEMENT", "Emplacement"], ["detail", "Détail"]],
       livraisons: [
         ["MARKETING_NAME", "Produit"], ["SKU", "SKU"], ["IMEI", "IMEI"], ["SN", "SN"],
         ["ENSEIGNE", "Enseigne"], ["MAGASIN", "Magasin"], ["EXPEDITEUR", "Expéditeur"],
@@ -851,6 +942,66 @@
       return out;
     }
 
+    function parseDateFromPlanning(value) {
+      if (!value) return null;
+      const m = String(value).match(/\bW(\d{1,2})\s+(\d{4})\b/i);
+      if (!m) return null;
+      const week = Number(m[1]), year = Number(m[2]);
+      if (week < 1 || week > 53 || year < 2000 || year > 2099) return null;
+      // Lundi de la semaine ISO : 4 jan est toujours en semaine 1
+      const jan4 = new Date(year, 0, 4);
+      const monday = new Date(jan4);
+      monday.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7) + (week - 1) * 7);
+      return monday;
+    }
+
+    function parseDateFromComment(value) {
+      if (!value) return null;
+      const text = String(value);
+      // 1. DD/MM/YYYY ou DD-MM-YYYY (ex: 15/07/2024) → priorité sur MM/YYYY
+      const m0 = text.match(/\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})\b/);
+      if (m0) {
+        const d = Number(m0[1]), mo = Number(m0[2]), y = Number(m0[3]);
+        if (d >= 1 && d <= 31 && mo >= 1 && mo <= 12 && y >= 2000 && y <= 2099) {
+          const date = new Date(y, mo - 1, d);
+          if (!Number.isNaN(date.getTime())) return date;
+        }
+      }
+      // 2. MM/YYYY (ex: 07/2024) → 1er du mois
+      const mShort = text.match(/\b(\d{1,2})[\/\-](\d{4})\b/);
+      if (mShort) {
+        const mo = Number(mShort[1]), y = Number(mShort[2]);
+        if (mo >= 1 && mo <= 12 && y >= 2000 && y <= 2099) return new Date(y, mo - 1, 1);
+      }
+      // 3. DDMMYYYY (ex: 18112025)
+      const m1 = text.match(/\b(\d{2})(\d{2})(\d{4})\b/);
+      if (m1) {
+        const d = Number(m1[1]), mo = Number(m1[2]), y = Number(m1[3]);
+        if (d >= 1 && d <= 31 && mo >= 1 && mo <= 12 && y >= 2000 && y <= 2099) {
+          const date = new Date(y, mo - 1, d);
+          if (!Number.isNaN(date.getTime())) return date;
+        }
+      }
+      // 4. W## YYYY (ex: W03 2026 ou W27 2024) → lundi de la semaine ISO
+      const mW = text.match(/\bW(\d{1,2})\s+(\d{4})\b/i);
+      if (mW) { const r = parseDateFromPlanning(`W${mW[1]} ${mW[2]}`); if (r) return r; }
+      // 5. Nom de mois français + année (ex: SEPTEMBRE 2025) → 1er du mois
+      const FR = { janvier:0,fevrier:1,février:1,mars:2,avril:3,mai:4,juin:5,juillet:6,aout:7,août:7,septembre:8,octobre:9,novembre:10,decembre:11,décembre:11 };
+      const m2 = text.match(/\b([a-záàâéèêëîïôùûüç]+)\s+(\d{4})\b/i);
+      if (m2) {
+        const mo = FR[m2[1].toLowerCase()];
+        const y = Number(m2[2]);
+        if (mo !== undefined && y >= 2000 && y <= 2099) return new Date(y, mo, 1);
+      }
+      // 6. MMYYYY (ex: 052025 = mai 2025) → 1er du mois
+      const m3 = text.match(/\b(\d{2})(\d{4})\b/);
+      if (m3) {
+        const mo = Number(m3[1]), y = Number(m3[2]);
+        if (mo >= 1 && mo <= 12 && y >= 2000 && y <= 2099) return new Date(y, mo - 1, 1);
+      }
+      return null;
+    }
+
     function parseLivraison(value) {
       if (value === undefined || value === null || value === "") return null;
       if (typeof value === "number" && Number.isFinite(value)) {
@@ -860,10 +1011,23 @@
       }
       const text = String(value).trim();
       if (!text || text.toUpperCase() === "X") return null;
-      const match = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
-      if (!match) return null;
-      const date = new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]));
-      return Number.isNaN(date.getTime()) ? null : date;
+      const matchNum = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+      if (matchNum) {
+        const date = new Date(Number(matchNum[3]), Number(matchNum[2]) - 1, Number(matchNum[1]));
+        return Number.isNaN(date.getTime()) ? null : date;
+      }
+      const matchShort = text.match(/^(\d{1,2})[\/-](\d{4})$/);
+      if (matchShort) {
+        const mo = Number(matchShort[1]), y = Number(matchShort[2]);
+        if (mo >= 1 && mo <= 12 && y >= 2000 && y <= 2099) return new Date(y, mo - 1, 1);
+      }
+      const FR_MONTHS = { janvier:1, février:2, fevrier:2, mars:3, avril:4, mai:5, juin:6, juillet:7, août:8, aout:8, septembre:9, octobre:10, novembre:11, décembre:12, decembre:12 };
+      const matchFr = text.match(/^(\d{1,2})\s+([a-záàâéèêëîïôùûüç]+)\s+(\d{4})$/i);
+      if (matchFr) {
+        const m = FR_MONTHS[matchFr[2].toLowerCase()];
+        if (m) { const date = new Date(Number(matchFr[3]), m - 1, Number(matchFr[1])); return Number.isNaN(date.getTime()) ? null : date; }
+      }
+      return null;
     }
 
     function parsePlanning(text) {
@@ -888,6 +1052,10 @@
         .filter(Boolean);
     }
 
+    function normalizeHeaders(rows) {
+      return rows.map(r => { const n = {}; Object.keys(r).forEach(k => { n[k.trim().toUpperCase()] = r[k]; }); return n; });
+    }
+
     function normalizeRows(inputRows) {
       return inputRows.map((source, index) => {
         const out = {};
@@ -895,7 +1063,7 @@
           out[column] = column === "LIVRAISON" ? normalizeValue(source[column], column) : normalizeValue(source[column], column);
         });
         out.__index = index + 1;
-        out.__livraisonDate = parseLivraison(source.LIVRAISON);
+        out.__livraisonDate = parseLivraison(source.LIVRAISON) || parseDateFromComment(source.COMMENTAIRE) || parseDateFromPlanning(source.PLANNING);
         out.__planning = parsePlanning(out.PLANNING);
         out.__search = REQUIRED_COLUMNS.map((c) => out[c]).filter(Boolean).join(" ").toUpperCase();
         return out;
@@ -911,10 +1079,7 @@
     }
 
     function isFactice(rowData) {
-      if (rowData.SKU === "FACTICE" || rowData.TYPE === "FACTICE") return true;
-      // Règle métier : les ACC sont de vrais produits sans IMEI/SN par nature
-      if (rowData.GAMME === "ACC") return false;
-      return !rowData.IMEI && !rowData.SN;
+      return rowData.TYPE === "FACTICE";
     }
 
     function isCountableArticle(rowData) {
@@ -1001,6 +1166,7 @@
         group.ruptureStandby = group.qtyByStatus.STANDBY || 0;
         group.ruptureLivraison = group.qtyByStatus.LIVRAISON || 0;
         group.ruptureMagasin = group.qtyByStatus.MAGASIN || 0;
+        group.ruptureProjet = group.qtyByStatus.PROJET || 0;
         group.ruptureVol = group.qtyByStatus.VOL || 0;
         group.ruptureProjet = group.qtyByStatus.PROJET || 0;
         return group;
@@ -1015,9 +1181,59 @@
       return best ? best.name : "";
     }
 
+    const FRENCH_MONTHS = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+
+    function buildHsLivraisonDateTree() {
+      const tree = new Map();
+      state.rows.filter(r => r.STATUT === "HS" && r.EMPLACEMENT !== "KUBE DESIGN" && r.__livraisonDate).forEach(r => {
+        const d = r.__livraisonDate;
+        const y = d.getFullYear(); const m = d.getMonth() + 1;
+        if (!tree.has(y)) tree.set(y, new Set());
+        tree.get(y).add(m);
+      });
+      return tree;
+    }
+    function buildDeliveryDateTree() {
+      const tree = new Map();
+      state.rows.filter(r => r.STATUT === "LIVRAISON" && r.EMPLACEMENT === "LIVRAISON" && r.__livraisonDate).forEach(r => {
+        const d = r.__livraisonDate;
+        const y = d.getFullYear(); const m = d.getMonth() + 1;
+        if (!tree.has(y)) tree.set(y, new Set());
+        tree.get(y).add(m);
+      });
+      return tree;
+    }
+
+    function isDeliveryActive(row) {
+      if (row.STATUT !== "LIVRAISON") return true;
+      const ex = state.deliveryExclusions;
+      if (row.__livraisonDate) {
+        const d = row.__livraisonDate;
+        const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        if (ex.dates.has(ym)) return false;
+      }
+      if (row.EXPEDITEUR && ex.shippers.has(row.EXPEDITEUR)) return false;
+      if (row.ENSEIGNE && ex.stores.has(row.ENSEIGNE)) return false;
+      if (row.GAMME && ex.gammes.has(row.GAMME)) return false;
+      return true;
+    }
+
+    function isRuptureExcluded(skuRow) {
+      return state.ruptureExclusions.has(skuRow.canonicalName);
+    }
+    function isHsLivraisonExcluded(r) {
+      if (!r.__livraisonDate) return false;
+      const d = r.__livraisonDate;
+      const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      return state.hsLivraisonExclusions.dates.has(ym);
+    }
+    function activeRuptureRows() {
+      return state.skuRows.filter(r => r.alert === "rupture" && !isRuptureExcluded(r));
+    }
+
     function alertForQty(qtyKube, qtyByStatus) {
-      if (qtyKube > 15) return { id: "ok", label: "" };
-      if (qtyKube >= 5) return { id: "low", label: "Stock de 5 à 15" };
+      if (qtyKube > 10) return { id: "ok", label: "" };
+      if (qtyKube >= 5) return { id: "low", label: "Stock de 5 à 10" };
       if (qtyKube > 0) return { id: "critical", label: "Stock de 0 à 5" };
       const hasElsewhere = qtyByStatus && Object.values(qtyByStatus).some(v => v > 0);
       return hasElsewhere ? { id: "rupture", label: "Rupture" } : { id: "", label: "" };
@@ -1025,16 +1241,39 @@
 
     function detectAnomalies(rows) {
       const anomalies = [];
+      // Construire la référence SKU → nom canonique (vote majoritaire, min 10 occurrences, RDU/LDU uniquement)
+      const skuNameCount = new Map();
+      rows.forEach(item => {
+        if ((item.TYPE !== "RDU" && item.TYPE !== "LDU") || !item.SKU || !item.MARKETING_NAME || isFactice(item)) return;
+        if (!skuNameCount.has(item.SKU)) skuNameCount.set(item.SKU, new Map());
+        const nm = skuNameCount.get(item.SKU);
+        nm.set(item.MARKETING_NAME, (nm.get(item.MARKETING_NAME) || 0) + 1);
+      });
+      const skuCanonical = new Map();
+      skuNameCount.forEach((nm, sku) => {
+        let bestName = null, bestCount = 0;
+        nm.forEach((count, name) => { if (count > bestCount) { bestName = name; bestCount = count; } });
+        if (bestCount >= 10) skuCanonical.set(sku, { name: bestName, count: bestCount });
+      });
       rows.forEach((item) => {
         if (item.STATUT === "MAGASIN" && item.EMPLACEMENT !== "MAGASIN") anomalies.push(anomaly("Statut magasin incohérent", item, "STATUT = MAGASIN mais EMPLACEMENT différent de MAGASIN"));
         if (item.STATUT === "STOCK KUBE" && item.EMPLACEMENT !== "KUBE DESIGN") anomalies.push(anomaly("Stock Kube hors entrepôt", item, "STATUT = STOCK KUBE mais EMPLACEMENT différent de KUBE DESIGN"));
         if (!item.SKU && !isFactice(item)) anomalies.push(anomaly("SKU vide", item, "La référence constructeur est vide ou nulle"));
+        if (!item.GAMME && !isFactice(item)) anomalies.push(anomaly("GAMME vide", item, "Produit non factice sans gamme renseignée"));
+        if (!item.TYPE && !isFactice(item)) anomalies.push(anomaly("TYPE vide", item, "Produit sans type (RDU/LDU/ACC/FACTICE)"));
         if (item.STATUT && !KNOWN_STATUSES.has(item.STATUT)) anomalies.push(anomaly("Statut non reconnu", item, item.STATUT));
         if (item.EMPLACEMENT && !KNOWN_LOCATIONS.has(item.EMPLACEMENT)) anomalies.push(anomaly("Emplacement non reconnu", item, item.EMPLACEMENT));
         if ((item.TYPE === "RDU" || item.TYPE === "LDU") && !item.IMEI && item.STATUT !== "HS") anomalies.push(anomaly("RDU/LDU sans IMEI", item, "Produit RDU ou LDU sans numéro IMEI"));
+        if (item.TYPE !== "FACTICE" && item.GAMME !== "ACC" && item.STATUT !== "HS" && !item.IMEI && !item.SN) anomalies.push(anomaly("Sans IMEI ni SN", item, "Produit non factice et non ACC sans IMEI ni SN"));
         if (item.STATUT === "LIVRAISON" && !item.EXPEDITEUR) anomalies.push(anomaly("Livraison sans expéditeur", item, "STATUT = LIVRAISON mais EXPEDITEUR vide"));
         if ((item.TYPE === "RDU" || item.TYPE === "LDU") && !isFactice(item) && !item.MARKETING_NAME) anomalies.push(anomaly("RDU/LDU sans MARKETING_NAME", item, "Produit RDU ou LDU non factice sans nom commercial"));
         if (item.STATUT === "STANDBY" && item.EMPLACEMENT !== "KUBE DESIGN") anomalies.push(anomaly("Standby hors Kube Design", item, "STATUT = STANDBY mais EMPLACEMENT différent de KUBE DESIGN"));
+        if (item.STATUT === "HS" && item.EMPLACEMENT !== "KUBE DESIGN" && item.EMPLACEMENT !== "LIVRAISON") anomalies.push(anomaly("HS hors Kube/Livraison", item, `STATUT = HS mais EMPLACEMENT = ${item.EMPLACEMENT || "vide"}`));
+        if (item.STATUT === "PROJET" && item.EMPLACEMENT !== "KUBE DESIGN") anomalies.push(anomaly("Projet hors Kube Design", item, `STATUT = PROJET mais EMPLACEMENT = ${item.EMPLACEMENT || "vide"}`));
+        if ((item.TYPE === "RDU" || item.TYPE === "LDU") && item.SKU && item.MARKETING_NAME && !isFactice(item) && skuCanonical.has(item.SKU)) {
+          const ref = skuCanonical.get(item.SKU);
+          if (item.MARKETING_NAME !== ref.name) anomalies.push(anomaly("SKU / Marketing incohérent", item, `SKU ${item.SKU} → nom attendu "${ref.name}" (${ref.count} fois), trouvé "${item.MARKETING_NAME}"`));
+        }
       });
       ["IMEI", "SN"].forEach((column) => {
         const seen = new Map();
@@ -1050,12 +1289,38 @@
           }
         });
       });
+      // Double statut actif : même IMEI ou SN sur plusieurs statuts différents
+      ["IMEI", "SN"].forEach((column) => {
+        const byKey = new Map();
+        rows.forEach(item => {
+          if (!item[column]) return;
+          const key = item[column];
+          if (!byKey.has(key)) byKey.set(key, []);
+          byKey.get(key).push(item);
+        });
+        byKey.forEach((items, key) => {
+          const statuts = new Set(items.map(i => i.STATUT));
+          if (statuts.size > 1) {
+            items.forEach(item => anomalies.push(anomaly("Double statut actif", item, `${column} ${key} présent en ${[...statuts].join(" + ")}`)));
+          }
+        });
+      });
       return anomalies;
     }
 
     function anomaly(type, item, detail) {
       const dismissKey = `${type}|${item.ID || ""}|${detail || ""}`;
-      return { type, detail, ID: item.ID, SKU: item.SKU, STATUT: item.STATUT, EMPLACEMENT: item.EMPLACEMENT, __row: item, dismissKey };
+      return { type, detail, ID: item.ID || item.__index || "", MARKETING_NAME: item.MARKETING_NAME || "", SKU: item.SKU, IMEI: item.IMEI, SN: item.SN, STATUT: item.STATUT, EMPLACEMENT: item.EMPLACEMENT, __row: item, dismissKey };
+    }
+
+    let _toastTimer;
+    function showToast(msg) {
+      const el = document.getElementById("toast");
+      if (!el) return;
+      el.textContent = msg;
+      el.classList.add("show");
+      clearTimeout(_toastTimer);
+      _toastTimer = setTimeout(() => el.classList.remove("show"), 3500);
     }
 
     function debounce(fn, ms) {
@@ -1082,12 +1347,13 @@
             if ((r.TYPE !== "RDU" && r.TYPE !== "LDU") || r.STATUT !== "STOCK KUBE" || r.EMPLACEMENT !== "KUBE DESIGN" || !r.MARKETING_NAME) return;
             m.set(r.MARKETING_NAME, (m.get(r.MARKETING_NAME) || 0) + 1);
           });
-          return [...m.values()].filter(v => v > 0 && v < 5).length + skuRows.filter(r => r.alert === "rupture").length;
+          return [...m.values()].filter(v => v > 0 && v < 5).length + skuRows.filter(r => r.alert === "rupture" && !isRuptureExcluded(r)).length;
         })(),
-        rupture: skuRows.filter((r) => r.alert === "rupture").length,
+        rupture: activeRuptureRows().length,
         project: rows.filter((r) => r.STATUT === "PROJET" && r.EMPLACEMENT === "KUBE DESIGN").length,
-        hs: rows.filter((r) => r.STATUT === "HS").length,
-        incoming: rows.filter((r) => r.STATUT === "LIVRAISON" && r.EXPEDITEUR !== "KUBE DESIGN").length,
+        hsKube: rows.filter((r) => r.STATUT === "HS" && r.EMPLACEMENT === "KUBE DESIGN").length,
+        hsLivraison: rows.filter(r => r.STATUT === "HS" && r.EMPLACEMENT !== "KUBE DESIGN" && !isHsLivraisonExcluded(r)).length,
+        incoming: rows.filter((r) => r.STATUT === "LIVRAISON" && r.EMPLACEMENT === "LIVRAISON" && isDeliveryActive(r)).length,
         installedMonth: rows.filter((r) => r.STATUT === "MAGASIN" && isCurrentMonth(r.__livraisonDate)).length,
         anomalies: state.anomalies.filter(a => !state.dismissedAnomalies.has(a.dismissKey)).length
       };
@@ -1112,23 +1378,43 @@
     function renderKpis() {
       const m = computeMetrics();
       const kpis = [
-        ["physical", "Stock physique", m.physical, "blue", () => state.rows.filter(isPhysicalStock), "Tous les articles chez Kube Design"],
         ["owned", "Stock Kube", m.owned, "green", () => state.rows.filter(isOwnedStock)],
         ["standby", "Stock standby", m.standby, "orange", () => state.rows.filter(isStandbyStock)],
         ["incoming", "Livraisons", m.incoming, "kpi-blue-filled", "livraisons"],
         ["project", "Réservé projet", m.project, "blue", () => state.rows.filter((r) => r.STATUT === "PROJET" && r.EMPLACEMENT === "KUBE DESIGN")],
-        ["hs", "HS", m.hs, "red", () => state.rows.filter((r) => r.STATUT === "HS")],
-        ["low", "Stock de 5 à 15", m.low, "kpi-darkorange-filled", "low"],
+        ["hsKube", "HS Kube Design", m.hsKube, "red"],
+        ["hsLivraison", "HS Livraison", m.hsLivraison, "kpi-blue-filled"],
+        ["low", "Stock de 5 à 10", m.low, "kpi-darkorange-filled", "low"],
         ["critical", "Stock de 0 à 5", m.critical, "kpi-orange-filled", "critical"],
         ["rupture", "Ruptures", m.rupture, "kpi-red-filled", "rupture"],
         ["anomalies", "Anomalies", m.anomalies, "red", "anomalies"]
       ];
-      document.getElementById("kpiGrid").innerHTML = kpis.map(([id, label, value, color, , def]) =>
-        `<button class="kpi ${color}" type="button" data-kpi="${id}"><strong>${value}</strong><span>${label}</span>${def ? `<span class="kpi-def">${escapeHtml(def)}</span>` : ""}</button>`
-      ).join("");
+      document.getElementById("kpiGrid").innerHTML = kpis.map(([id, label, value, color, , def]) => {
+        const pulse = id === "anomalies" && value > 4 ? " kpi-pulse" : "";
+        return `<button class="kpi ${color}${pulse}" type="button" data-kpi="${id}"><strong>${value}</strong><span>${label}</span>${def ? `<span class="kpi-def">${escapeHtml(def)}</span>` : ""}</button>`;
+      }).join("");
+      const kpiDetailNav = {
+        physical:     { statut: "",           emplacement: "KUBE DESIGN" },
+        owned:        { statut: "STOCK KUBE", emplacement: "" },
+        standby:      { statut: "STANDBY",    emplacement: "" },
+        project:      { statut: "PROJET",     emplacement: "KUBE DESIGN" },
+        hsKube:       { statut: "HS",         emplacement: "KUBE DESIGN" },
+        hsLivraison:  { statut: "HS",         emplacement: "LIVRAISON" },
+      };
       kpis.forEach(([id, label, , , provider]) => {
         document.querySelector(`[data-kpi="${id}"]`).addEventListener("click", () => {
-          if (typeof provider === "string") {
+          if (kpiDetailNav[id]) {
+            const nav = kpiDetailNav[id];
+            state.detailStatut = nav.statut;
+            state.detailEmplacement = nav.emplacement;
+            state.detailSearch = "";
+            state.detailAlerte = "";
+            state.currentTab = "detail";
+            state.page = 1;
+            state.sort = defaultSortForTab("detail");
+            showLoading();
+            setTimeout(() => renderAll(), 0);
+          } else if (typeof provider === "string") {
             state.currentTab = provider;
             state.page = 1;
             state.sort = defaultSortForTab(provider);
@@ -1151,16 +1437,21 @@
       let html = "";
       let advDividerAdded = false;
       let opsDividerAdded = false;
+      let settingsDividerAdded = false;
       tabs.forEach((tab) => {
-        if (tab.adv && !advDividerAdded) {
+        if (tab.adv && !tab.settings && !advDividerAdded) {
           html += `<div class="sidebar-section">Analytics</div>`;
           advDividerAdded = true;
         }
-        if (!tab.adv && !opsDividerAdded) {
+        if (!tab.adv && !tab.settings && !opsDividerAdded) {
           html += `<div class="sidebar-section" style="margin-top:6px">Opérationnel</div>`;
           opsDividerAdded = true;
         }
-        html += `<button class="tab${tab.id === state.currentTab ? " active" : ""}${tab.adv ? " tab-adv" : ""}" type="button" data-tab="${tab.id}"><span class="tab-label">${tab.label}</span></button>`;
+        if (tab.settings && !settingsDividerAdded) {
+          html += `<div class="sidebar-section" style="margin-top:6px">Paramètres</div>`;
+          settingsDividerAdded = true;
+        }
+        html += `<button class="tab${tab.id === state.currentTab ? " active" : ""}${(tab.adv || tab.settings) ? " tab-adv" : ""}" type="button" data-tab="${tab.id}"><span class="tab-label">${tab.label}</span></button>`;
       });
       document.getElementById("tabs").innerHTML = html;
       document.querySelectorAll("[data-tab]").forEach((button) => {
@@ -1204,8 +1495,8 @@
           tools: "livraisons"
         },
         low: {
-          title: "Stock de 5 à 15",
-          intro: "Articles RDU/LDU en Stock Kube dont le stock du MARKETING_NAME est entre 5 et 15 unités.",
+          title: "Stock de 5 à 10",
+          intro: "Articles RDU/LDU en Stock Kube dont le stock du MARKETING_NAME est entre 5 et 10 unités.",
           tools: "stock-alert"
         },
         critical: {
@@ -1222,6 +1513,16 @@
           title: "Anomalies",
           intro: "Contrôles automatiques : statuts incohérents, SKU manquants non factices, doublons IMEI/SN et valeurs non reconnues.",
           tools: "anomalies"
+        },
+        ruptureSettings: {
+          title: "Paramètres ruptures",
+          intro: "",
+          tools: "none"
+        },
+        deliverySettings: {
+          title: "Paramètres livraisons",
+          intro: "",
+          tools: "none"
         }
       };
       return configs[tab] || configs.sku;
@@ -1260,7 +1561,7 @@
       if (tab === "technicians") return { key: "LIVRAISON", dir: "desc" };
       if (tab === "planning") return { key: "week", dir: "asc" };
       if (tab === "rupture" || tab === "low" || tab === "critical") return { key: "canonicalName", dir: "asc" };
-      return { key: "__index", dir: "asc" };
+      return { key: "ID", dir: "desc" };
     }
 
     function currentRows() {
@@ -1270,8 +1571,8 @@
       if (state.currentTab === "livraisons") return livraisonsRows();
       if (state.currentTab === "planning") return planningRows();
       if (state.currentTab === "low") return state.skuRows.filter((r) => r.alert === "low" && r.names && r.names.size > 0 && !r.isFactice);
-      if (state.currentTab === "critical") return state.skuRows.filter((r) => r.alert === "critical" && r.names && r.names.size > 0);
-      if (state.currentTab === "rupture") return state.skuRows.filter((r) => r.alert === "rupture");
+      if (state.currentTab === "critical") return state.skuRows.filter((r) => r.alert === "critical" && r.names && r.names.size > 0 && !isRuptureExcluded(r));
+      if (state.currentTab === "rupture") return activeRuptureRows();
       if (state.currentTab === "anomalies") {
         let base = state.anomalies.filter(a => !state.dismissedAnomalies.has(a.dismissKey));
         if (state.anomalyTypeFilter) base = base.filter(a => a.type === state.anomalyTypeFilter);
@@ -1281,20 +1582,18 @@
     }
 
     function enrichRowsWithAlerts(rows, skuRows) {
-      const alertMap = new Map();
-      skuRows.forEach((sr) => {
-        sr.names.forEach((_, name) => alertMap.set(name, { alert: sr.alert, alertLabel: sr.alertLabel }));
-      });
+      const alertByKey = new Map();
+      skuRows.forEach((sr) => alertByKey.set(sr.key, { alert: sr.alert, alertLabel: sr.alertLabel }));
       rows.forEach((r) => {
-        if (r.STATUT !== "STOCK KUBE" || r.EMPLACEMENT !== "KUBE DESIGN" || (r.TYPE !== "RDU" && r.TYPE !== "LDU")) { r.alertLabel = ""; r.alert = ""; return; }
-        const info = r.MARKETING_NAME ? alertMap.get(r.MARKETING_NAME) : null;
+        if (r.STATUT !== "STOCK KUBE" || r.EMPLACEMENT !== "KUBE DESIGN") { r.alertLabel = ""; r.alert = ""; return; }
+        const info = alertByKey.get(getGroupKey(r));
         r.alertLabel = info ? info.alertLabel : "";
         r.alert = info ? info.alert : "";
       });
     }
 
     function livraisonsRows() {
-      return state.rows.filter((r) => r.STATUT === "LIVRAISON");
+      return state.rows.filter((r) => r.STATUT === "LIVRAISON" && r.EMPLACEMENT === "LIVRAISON" && isDeliveryActive(r));
     }
 
 
@@ -1324,14 +1623,17 @@
       const gamme = state.gammeFilter;
       return rows.filter((r) => {
         if (gamme && r.GAMME !== gamme && r.gamme !== gamme) return false;
-        if (state.detailSearch) {
-          const dq = state.detailSearch.toUpperCase();
-          const searchVal = r.__search || Object.values(r).filter(v => typeof v !== "object").join(" ").toUpperCase();
-          if (!searchVal.includes(dq)) return false;
+        if (state.currentTab === "detail") {
+          if (state.detailSearch) {
+            const dq = state.detailSearch.toUpperCase();
+            const searchVal = r.__search || Object.values(r).filter(v => typeof v !== "object").join(" ").toUpperCase();
+            if (!searchVal.includes(dq)) return false;
+          }
+          if (state.detailStatut && r.STATUT !== state.detailStatut) return false;
+          if (state.detailEmplacement && r.EMPLACEMENT !== state.detailEmplacement) return false;
+          if (state.detailAlerte && r.alert !== state.detailAlerte) return false;
+          if (state.detailStatut === "HS" && r.EMPLACEMENT !== "KUBE DESIGN" && isHsLivraisonExcluded(r)) return false;
         }
-        if (state.detailStatut && r.STATUT !== state.detailStatut) return false;
-        if (state.detailEmplacement && r.EMPLACEMENT !== state.detailEmplacement) return false;
-        if (state.detailAlerte && r.alert !== state.detailAlerte) return false;
         if (state.currentTab === "technicians" && state.techSearch) {
           const techQuery = state.techSearch.toUpperCase();
           if (!r.__search || !r.__search.includes(techQuery)) return false;
@@ -1341,13 +1643,30 @@
             const lq = state.livraisonSearch.toUpperCase();
             if (!r.__search || !r.__search.includes(lq)) return false;
           }
-          if (r.EXPEDITEUR === "KUBE DESIGN") return false;  // entrées uniquement
           if (state.livraisonEnseigne && r.ENSEIGNE !== state.livraisonEnseigne) return false;
           if (state.livraisonExpediteur && r.EXPEDITEUR !== state.livraisonExpediteur) return false;
+          if (state.livraisonMonthFilter) {
+            if (!r.__livraisonDate) return false;
+            const d = r.__livraisonDate;
+            const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+            if (ym !== state.livraisonMonthFilter) return false;
+          }
         }
         if ((state.currentTab === "low" || state.currentTab === "critical") && state.alertTypeFilter) {
           const t = r.type || "";
           if (!t.includes(state.alertTypeFilter)) return false;
+        }
+        if ((state.currentTab === "low" || state.currentTab === "critical") && state.detailSearch) {
+          const dq = state.detailSearch.toUpperCase();
+          const nameMatch = (r.canonicalName || "").toUpperCase().includes(dq) || (r.gamme || "").toUpperCase().includes(dq);
+          if (!nameMatch) {
+            const imeiMatch = state.rows.some(row =>
+              row.STATUT === "STOCK KUBE" && row.EMPLACEMENT === "KUBE DESIGN" &&
+              getGroupKey(row) === r.key &&
+              ((row.IMEI && row.IMEI.toString().toUpperCase() === dq) || (row.SN && row.SN.toString().toUpperCase() === dq))
+            );
+            if (!imeiMatch) return false;
+          }
         }
         return true;
       });
@@ -1381,33 +1700,46 @@
           renderTable(true);
         });
       });
-      document.querySelectorAll(".anomaly-dismiss").forEach((cb) => {
-        cb.addEventListener("change", () => {
-          if (cb.checked) state.dismissedAnomalies.add(cb.dataset.key);
-          else state.dismissedAnomalies.delete(cb.dataset.key);
-          renderAll();
-        });
-      });
       renderPager(state.page, totalPages, rows.length);
       if (!skipTools) renderTableTools();
+      // Drilldown IMEI/SN pour les onglets low/critical
+      if (tab === "low" || tab === "critical") {
+        document.querySelectorAll("#dataTable tr[data-sku-drill]").forEach(tr => {
+          tr.addEventListener("click", () => {
+            const key = tr.dataset.skuDrill;
+            const label = tr.dataset.skuName || key;
+            const indivRows = state.rows.filter(r => r.STATUT === "STOCK KUBE" && r.EMPLACEMENT === "KUBE DESIGN" && getGroupKey(r) === key);
+            openDrawer(`${label} — produits individuels`, indivRows);
+          });
+        });
+      }
     }
 
     function tableHtml(cols, rows, sortable) {
       if (!rows.length) return `<tbody><tr><td class="empty">Aucune ligne à afficher</td></tr></tbody>`;
       const head = `<thead><tr>${cols.map(([key, label]) => `<th ${sortable ? `data-key="${escapeHtml(key)}"` : ""}>${escapeHtml(label)}</th>`).join("")}</tr></thead>`;
-      const body = `<tbody>${rows.map((rowData) => `<tr>${cols.map(([key]) => `<td>${cellHtml(rowData, key)}</td>`).join("")}</tr>`).join("")}</tbody>`;
+      const isSkuDrillTab = state.currentTab === "low" || state.currentTab === "critical";
+      const isDetailTab = state.currentTab === "detail";
+      const body = `<tbody>${rows.map((rowData) => { const isAnomaliesTab = state.currentTab === "anomalies"; const noDate = !isAnomaliesTab && rowData.STATUT === "LIVRAISON" && rowData.EMPLACEMENT === "LIVRAISON" && !rowData.__livraisonDate; const ruptureProjet = !isAnomaliesTab && rowData.alert === "rupture" && (rowData.ruptureProjet || 0) >= 1; const cls = noDate ? "row-no-date" : ruptureProjet ? "row-rupture-projet" : ""; const skuAttr = isSkuDrillTab && rowData.key ? ` class="clickable-row${cls ? " "+cls : ""}" data-sku-drill="${escapeHtml(rowData.key)}" data-sku-name="${escapeHtml(rowData.canonicalName||"")}"` : (cls ? ` class="${cls}"` : ""); const imeiAttr = isDetailTab ? ` data-imei="${escapeHtml(rowData.IMEI||"")}" data-sn="${escapeHtml(rowData.SN||"")}"` : ""; return `<tr${skuAttr}${imeiAttr}>${cols.map(([key]) => `<td>${cellHtml(rowData, key)}</td>`).join("")}</tr>`; }).join("")}</tbody>`;
       return head + body;
     }
 
     function cellHtml(rowData, key) {
       const value = rowData[key];
-      if (key === "dismiss") {
-        const checked = state.dismissedAnomalies.has(rowData.dismissKey) ? "checked" : "";
-        return `<input type="checkbox" class="anomaly-dismiss" data-key="${escapeHtml(rowData.dismissKey)}" ${checked}>`;
-      }
       if (key === "alertLabel") {
         const cls = rowData.alert === "ok" ? "ok" : rowData.alert === "low" ? "low" : rowData.alert === "critical" ? "critical" : rowData.alert === "rupture" ? "rupture" : "zero";
         return `<span class="pill ${cls}">${escapeHtml(value || "")}</span>`;
+      }
+      if (key === "ruptureProjet") {
+        const n = Number(value) || 0;
+        return n >= 1 ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:#c0392b;color:#fff;font-size:12px;font-weight:700">${n}</span>` : "0";
+      }
+      if (key === "LIVRAISON") {
+        if (rowData.__livraisonDate) {
+          const d = rowData.__livraisonDate;
+          return escapeHtml(`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`);
+        }
+        return escapeHtml(value === null || value === undefined ? "" : String(value));
       }
       return escapeHtml(value === null || value === undefined ? "" : String(value));
     }
@@ -1426,14 +1758,15 @@
       if (!_distinctCache) {
         _distinctCache = {
           gammes:       [...new Set(state.rows.map(r => r.GAMME).filter(Boolean))].sort(),
-          enseignes:    [...new Set(state.rows.filter(r => r.STATUT === "LIVRAISON").map(r => r.ENSEIGNE).filter(Boolean))].sort(),
-          expediteurs:  [...new Set(state.rows.filter(r => r.STATUT === "LIVRAISON").map(r => r.EXPEDITEUR).filter(Boolean))].sort(),
+          enseignes:    [...new Set(state.rows.filter(r => r.STATUT === "LIVRAISON" && r.EMPLACEMENT === "LIVRAISON").map(r => r.ENSEIGNE).filter(Boolean))].sort(),
+          expediteurs:  [...new Set(state.rows.filter(r => r.STATUT === "LIVRAISON" && r.EMPLACEMENT === "LIVRAISON").map(r => r.EXPEDITEUR).filter(Boolean))].sort(),
+          livraisonMonths: [...new Set(state.rows.filter(r => r.STATUT === "LIVRAISON" && r.EMPLACEMENT === "LIVRAISON" && r.__livraisonDate).map(r => { const d = r.__livraisonDate; return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }))].sort().reverse(),
           statuts:      [...new Set(state.rows.map(r => r.STATUT).filter(Boolean))].sort(),
           emplacements: [...new Set(state.rows.map(r => r.EMPLACEMENT).filter(Boolean))].sort(),
           anomalyTypes: [...new Set(state.anomalies.map(a => a.type))].sort()
         };
       }
-      const { gammes: distinctGammes, enseignes: distinctEnseignes, expediteurs: distinctExpediteurs, statuts: distinctStatuts, emplacements: distinctEmplacements } = _distinctCache;
+      const { gammes: distinctGammes, enseignes: distinctEnseignes, expediteurs: distinctExpediteurs, statuts: distinctStatuts, emplacements: distinctEmplacements, livraisonMonths: distinctLivMonths } = _distinctCache;
 
       const technicianSearch = config.tools === "technicians" ? `
         <input id="techSearch" type="search" placeholder="Rechercher IMEI, SN, technicien, produit" value="${escapeHtml(state.techSearch)}">
@@ -1443,7 +1776,7 @@
         const gammeTag = state.gammeFilter ? `<span class="badge-filters">— ${escapeHtml(state.gammeFilter)}</span>` : "";
         const tabLabel = "produit";
         const badge = `<span class="livraison-badge"><span class="badge-count">${count}</span> ${tabLabel}${count !== 1 ? "s" : ""} ${gammeTag}</span>`;
-        const ruptureCount = state.currentTab === "critical" ? state.skuRows.filter(r => r.alert === "rupture").length : 0;
+        const ruptureCount = state.currentTab === "critical" ? state.skuRows.filter(r => r.alert === "rupture" && !isRuptureExcluded(r)).length : 0;
         const ruptureBanner = (state.currentTab === "critical" && ruptureCount > 0) ? `
           <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--red);background:#fef2f2;border:1px solid #fecaca;padding:3px 10px;border-radius:20px">
             <strong>${ruptureCount}</strong>&nbsp;article${ruptureCount > 1 ? "s" : ""} déjà en rupture
@@ -1461,7 +1794,7 @@
             <option value="">Toutes gammes</option>
             ${distinctGammes.map((g) => `<option value="${escapeHtml(g)}" ${state.gammeFilter === g ? "selected" : ""}>${escapeHtml(g)}</option>`).join("")}
           </select>
-          <button id="resetStockFilters" type="button" class="btn-reset">✕ Réinitialiser</button>
+          <button id="resetStockFilters" type="button" class="btn-reset${state.alertTypeFilter || state.gammeFilter ? " active" : ""}">✕ Réinitialiser</button>
         `;
       })() : "";
 
@@ -1484,22 +1817,27 @@
           <select id="detailAlerte">
             <option value="">Tous statuts alerte</option>
             <option value="ok" ${state.detailAlerte === "ok" ? "selected" : ""}>Stock OK</option>
-            <option value="low" ${state.detailAlerte === "low" ? "selected" : ""}>Stock de 5 à 15</option>
+            <option value="low" ${state.detailAlerte === "low" ? "selected" : ""}>Stock de 5 à 10</option>
             <option value="critical" ${state.detailAlerte === "critical" ? "selected" : ""}>Stock de 0 à 5</option>
             ${(!["detail", "anomalies", "low", "critical"].includes(state.currentTab)) ? `<option value="rupture" ${state.detailAlerte === "rupture" ? "selected" : ""}>Rupture</option>` : ""}
           </select>
-          <button id="resetStockFilters" type="button" class="btn-reset">✕ Réinitialiser</button>
+          <button id="resetStockFilters" type="button" class="btn-reset${state.detailStatut || state.detailEmplacement || state.detailAlerte || state.gammeFilter ? " active" : ""}">✕ Réinitialiser</button>
         `;
       })() : "";
 
 
       const livraisonTools = config.tools === "livraisons" ? (() => {
         const count = state.filteredRows.length;
-        const parts = [state.livraisonEnseigne, state.livraisonExpediteur, state.gammeFilter].filter(Boolean);
+        const parts = [state.livraisonEnseigne, state.livraisonExpediteur, state.gammeFilter, state.livraisonMonthFilter].filter(Boolean);
         const filterLabel = parts.length ? `<span class="badge-filters">— ${escapeHtml(parts.join(" · "))}</span>` : "";
+        const fmtMonth = ym => { const [y,m] = ym.split("-"); return `${FRENCH_MONTHS[parseInt(m)-1]} ${y}`; };
         return `
           <span class="livraison-badge"><span class="badge-count">${count}</span> livraison${count !== 1 ? "s" : ""} ${filterLabel}</span>
           <input id="livraisonSearch" type="search" placeholder="IMEI, SN, produit, magasin…" value="${escapeHtml(state.livraisonSearch)}" style="min-width:220px">
+          <select id="livraisonMonthFilter">
+            <option value="">Tous les mois</option>
+            ${(distinctLivMonths||[]).map(ym => `<option value="${escapeHtml(ym)}" ${state.livraisonMonthFilter === ym ? "selected" : ""}>${escapeHtml(fmtMonth(ym))}</option>`).join("")}
+          </select>
           <select id="livraisonEnseigne">
             <option value="">Toutes enseignes</option>
             ${distinctEnseignes.map((e) => `<option value="${escapeHtml(e)}" ${state.livraisonEnseigne === e ? "selected" : ""}>${escapeHtml(e)}</option>`).join("")}
@@ -1508,7 +1846,7 @@
             <option value="">Tous expéditeurs</option>
             ${distinctExpediteurs.map((e) => `<option value="${escapeHtml(e)}" ${state.livraisonExpediteur === e ? "selected" : ""}>${escapeHtml(e)}</option>`).join("")}
           </select>
-          <button id="resetLivraisonFilters" type="button" class="btn-reset">✕ Réinitialiser</button>
+          <button id="resetLivraisonFilters" type="button" class="btn-reset${state.livraisonEnseigne || state.livraisonExpediteur || state.gammeFilter || state.livraisonMonthFilter ? " active" : ""}">✕ Réinitialiser</button>
         `;
       })() : "";
 
@@ -1607,6 +1945,14 @@
           renderTable();
         }, 200));
       }
+      const livraisonMonthFilter = document.getElementById("livraisonMonthFilter");
+      if (livraisonMonthFilter) {
+        livraisonMonthFilter.addEventListener("change", () => {
+          state.livraisonMonthFilter = livraisonMonthFilter.value;
+          state.page = 1;
+          renderTable();
+        });
+      }
       const livraisonEnseigne = document.getElementById("livraisonEnseigne");
       if (livraisonEnseigne) {
         livraisonEnseigne.addEventListener("change", () => {
@@ -1630,6 +1976,7 @@
           state.livraisonSearch = "";
           state.livraisonEnseigne = "";
           state.livraisonExpediteur = "";
+          state.livraisonMonthFilter = "";
           state.gammeFilter = "";
           state.page = 1;
           renderTable();
@@ -1716,12 +2063,8 @@
     }
 
     function renderCharts() {
-      const expediteurRows = state.rows.filter((r) => isUsefulChartValue(r.EXPEDITEUR));
-      const availableRows = state.rows.filter(isAvailable);
-      makeChart("standbyChart", "pie", countBy(expediteurRows, "EXPEDITEUR"), expediteurRows, "EXPEDITEUR", "Expéditeur");
-
-      makeChart("brandChart", "bar", countBy(state.rows.filter((r) => isUsefulChartValue(r.ENSEIGNE)), "ENSEIGNE"), state.rows.filter((r) => isUsefulChartValue(r.ENSEIGNE)), "ENSEIGNE", "Enseigne");
-      makeChart("rangeChart", "doughnut", countBy(availableRows, "GAMME"), availableRows, "GAMME", "Gamme");
+      const kubeRows = state.rows.filter(r => r.EMPLACEMENT === "KUBE DESIGN" && r.STATUT !== "HS");
+      makeChart("rangeChart", "bar", countBy(kubeRows, "GAMME"), kubeRows, "GAMME", "Gamme", "detail");
     }
 
     function countBy(rows, key) {
@@ -1740,19 +2083,29 @@
       return Boolean(upper && upper !== "X" && upper !== "NON RENSEIGNÉ" && upper !== "NON RENSEIGNE");
     }
 
-    function makeChart(id, type, entries, sourceRows = [], filterKey = null, title = "Graphique") {
+    function makeChart(id, type, entries, sourceRows = [], filterKey = null, title = "Graphique", navTab = null) {
       const canvas = document.getElementById(id);
       const labels = entries.map(([label]) => label);
       const values = entries.map(([, value]) => value);
+      const handleClick = (event, elements) => {
+        if (!elements.length || !filterKey) return;
+        const label = labels[elements[0].index];
+        if (navTab) {
+          state.currentTab = navTab;
+          state.gammeFilter = label;
+          state.detailEmplacement = "KUBE DESIGN";
+          state.page = 1;
+          renderAll();
+        } else {
+          openDrawer(`${title} - ${label}`, sourceRows.filter(r => (r[filterKey] || "Non renseigné") === label));
+        }
+      };
       if (state.charts[id]) {
         const c = state.charts[id];
         c.data.labels = labels;
         c.data.datasets[0].data = values;
-        c.options.onClick = (event, elements) => {
-          if (!elements.length || !filterKey) return;
-          const label = labels[elements[0].index];
-          openDrawer(`${title} - ${label}`, sourceRows.filter(r => (r[filterKey] || "Non renseigné") === label));
-        };
+        c.options.onClick = handleClick;
+        if (type === "bar") c.options.plugins.datalabels = { display: true, anchor: "end", align: "top", color: "#333", font: { size: 11, weight: "600" }, formatter: v => v };
         c.update("none");
         return;
       }
@@ -1771,13 +2124,11 @@
           onHover: (event, elements) => {
             event.native.target.style.cursor = elements.length ? "pointer" : "default";
           },
-          onClick: (event, elements) => {
-            if (!elements.length || !filterKey) return;
-            const label = labels[elements[0].index];
-            const detailRows = sourceRows.filter((rowData) => (rowData[filterKey] || "Non renseigné") === label);
-            openDrawer(`${title} - ${label}`, detailRows);
+          onClick: handleClick,
+          plugins: {
+            legend: { display: type !== "bar", position: "bottom", labels: { boxWidth: 12 } },
+            datalabels: type === "bar" ? { display: true, anchor: "end", align: "top", color: "#333", font: { size: 11, weight: "600" }, formatter: v => v } : { display: false }
           },
-          plugins: { legend: { position: type === "bar" ? "top" : "bottom", labels: { boxWidth: 12 } } },
           scales: type === "bar" ? { y: { beginAtZero: true, ticks: { precision: 0 } } } : {}
         }
       });
@@ -1801,8 +2152,45 @@
       document.getElementById("drawer").setAttribute("aria-hidden", "true");
     }
 
+    function getImportStatusMsg() {
+      if (!state.importedAt) return "";
+      const pad = v => String(v).padStart(2,"0");
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+      // Utilise la chaîne ISO brute si dispo (évite le décalage UTC→local)
+      const importStr = state.importedAtRaw
+        ? state.importedAtRaw.substring(0, 10)
+        : `${state.importedAt.getFullYear()}-${pad(state.importedAt.getMonth()+1)}-${pad(state.importedAt.getDate())}`;
+      const isToday = importStr === todayStr;
+      const [y, m, d] = importStr.split("-");
+      const dateStr = `${d}/${m}/${y}`;
+      return isToday ? `Import à jour — ${dateStr}` : `📥 Importez votre export SODA du jour`;
+    }
+    function updateImportStatusMsg() {
+      const msg = getImportStatusMsg();
+      const isLate = msg.startsWith("📥");
+      // Badge sidebar (toujours visible)
+      const sb = document.getElementById("importStatusBadge");
+      if (sb) {
+        sb.textContent = msg;
+        sb.style.display = msg ? "block" : "none";
+        sb.style.color = isLate ? "#c67a00" : "var(--green)";
+        sb.style.background = isLate ? "rgba(198,122,0,0.08)" : "rgba(0,160,80,0.08)";
+      }
+    }
+
+    function normalizeFileName(fileName, importedAt) {
+      const pad = v => String(v).padStart(2,"0");
+      const d = importedAt;
+      const dd = pad(d.getDate()), mm = pad(d.getMonth()+1), yyyy = d.getFullYear();
+      // Vérifie si le nom contient la date sous forme DD/MM/YYYY, DDMMYYYY, DD-MM-YYYY ou YYYY-MM-DD
+      const hasDate = new RegExp(`${dd}[/\\-]?${mm}[/\\-]?${yyyy}|${yyyy}[/\\-]?${mm}[/\\-]?${dd}`).test(fileName);
+      return hasDate ? fileName : `export(${dd}/${mm}/${yyyy})`;
+    }
+
     function loadRows(inputRows, fileName, options = {}) {
       const importedAt = options.importedAt ? new Date(options.importedAt) : new Date();
+      fileName = normalizeFileName(fileName, importedAt);
       state.rawRows = inputRows;
       state.rows = normalizeRows(inputRows);
       state.skuRows = buildSkuRows(state.rows);
@@ -1811,10 +2199,12 @@
       state.dismissedAnomalies = new Set();
       state.fileName = fileName;
       state.importedAt = importedAt;
+      state.importedAtRaw = options.importedAt || null;
       state.currentTab = options.keepTab ? state.currentTab : "dashboard";
       state.page = 1;
       state.sort = defaultSortForTab(state.currentTab);
       document.getElementById("fileMeta").textContent = `${fileName} - ${state.rows.length} lignes - import ${state.importedAt.toLocaleString("fr-FR")}`;
+      updateImportStatusMsg();
       invalidateCaches();
       snapshotMetrics();
       renderAll();
@@ -1858,7 +2248,7 @@
         standby: m.standby,
         livraisons: m.incoming,
         projet: m.project,
-        hs: m.hs,
+        hs: m.hsKube,
         low: m.low,
         critical: m.critical,
       });
@@ -1892,22 +2282,509 @@
       return d;
     }
 
+    function deliveryExclusionCounts() {
+      const ex = state.deliveryExclusions;
+      const livRows = state.rows.filter(r => r.STATUT === "LIVRAISON" && r.EMPLACEMENT === "LIVRAISON");
+      const tree = buildDeliveryDateTree();
+      let total = 0, excluded = 0;
+      tree.forEach((months, y) => months.forEach(m => { total++; if (ex.dates.has(`${y}-${String(m).padStart(2,'0')}`)) excluded++; }));
+      [...new Set(livRows.filter(r=>r.EXPEDITEUR).map(r=>r.EXPEDITEUR))].forEach(v => { total++; if (ex.shippers.has(v)) excluded++; });
+      [...new Set(livRows.filter(r=>r.ENSEIGNE).map(r=>r.ENSEIGNE))].forEach(v => { total++; if (ex.stores.has(v)) excluded++; });
+      [...new Set(livRows.filter(r=>r.GAMME).map(r=>r.GAMME))].forEach(v => { total++; if (ex.gammes.has(v)) excluded++; });
+      return { active: total - excluded, excluded };
+    }
+
+    function renderDeliverySection() {
+      const tab = state.deliverySettingsTab;
+      const ex = state.deliveryExclusions;
+      const search = (state.deliverySettingsSearch || "").toLowerCase();
+      const livRows = state.rows.filter(r => r.STATUT === "LIVRAISON" && r.EMPLACEMENT === "LIVRAISON");
+
+      if (tab === "dates") {
+        const tree = buildDeliveryDateTree();
+        // Fusionner les années de l'arbre + les années dans ex.dates (mois exclus sans livraisons)
+        const allYears = new Set([...tree.keys()]);
+        ex.dates.forEach(ym => { const y = parseInt(ym.split("-")[0]); if (y >= 2000) allYears.add(y); });
+        if (!allYears.size) return `<div style="text-align:center;padding:24px;color:var(--muted)">Aucune livraison avec date détectée</div>`;
+        return [...allYears].sort((a,b) => b-a).map(year => {
+          const treeMonths = tree.get(year) || new Set();
+          // Fusionner mois de l'arbre + mois exclus pour cette année
+          const exMonths = new Set();
+          ex.dates.forEach(ym => { const [y,m] = ym.split("-"); if (parseInt(y)===year) exMonths.add(parseInt(m)); });
+          const allMonths = new Set([...treeMonths, ...exMonths]);
+          const months = [...allMonths].sort((a,b) => a-b);
+          const ymKeys = months.map(m => `${year}-${String(m).padStart(2,'0')}`);
+          const excCount = ymKeys.filter(k => ex.dates.has(k)).length;
+          const partial = excCount > 0 && excCount < ymKeys.length;
+          const allExc = excCount === ymKeys.length;
+          return `<div class="ds-year-block">
+            <div class="ds-year-header">
+              <label class="rs-toggle"><input type="checkbox" class="ds-year-toggle" data-year="${year}" ${allExc?"":"checked"}><span class="rs-toggle-slider"></span></label>
+              <span class="ds-year-label">${year}</span>
+              ${partial?`<span style="font-size:10px;color:#d98200;font-weight:600">Partiel</span>`:""}
+              <span class="ds-count-badge">${ymKeys.length - excCount}/${ymKeys.length} actifs</span>
+            </div>
+            <div class="ds-months">${months.map(m => {
+              const ym = `${year}-${String(m).padStart(2,'0')}`;
+              const active = !ex.dates.has(ym);
+              const count = [...(state.rows||[])].filter(r => r.STATUT==="LIVRAISON" && r.EMPLACEMENT==="LIVRAISON" && r.__livraisonDate && r.__livraisonDate.getFullYear()===year && r.__livraisonDate.getMonth()+1===m).length;
+              return `<div class="ds-month-item${active?"":" excluded"}">
+                <label class="rs-toggle"><input type="checkbox" class="ds-month-toggle" data-ym="${ym}" ${active?"checked":""}><span class="rs-toggle-slider"></span></label>
+                <span>${FRENCH_MONTHS[m-1]}${count?` <span style="font-size:10px;color:var(--muted)">(${count})</span>`:""}</span>
+              </div>`;
+            }).join("")}</div>
+          </div>`;
+        }).join("");
+      }
+
+      const fieldMap = { shippers: "EXPEDITEUR", stores: "ENSEIGNE", gammes: "GAMME" };
+      const exSet = tab === "shippers" ? ex.shippers : tab === "stores" ? ex.stores : ex.gammes;
+      const field = fieldMap[tab];
+      let values = [...new Set(livRows.filter(r=>r[field]).map(r=>r[field]))].sort();
+      if (search) values = values.filter(v => v.toLowerCase().includes(search));
+      if (!values.length) return `<div style="text-align:center;padding:24px;color:var(--muted)">Aucun élément trouvé</div>`;
+      return values.map(v => {
+        const active = !exSet.has(v);
+        const count = livRows.filter(r => r[field] === v).length;
+        return `<div class="ds-list-item${active?"":" excluded"}">
+          <label class="rs-toggle"><input type="checkbox" class="ds-item-toggle" data-type="${tab}" data-value="${escapeHtml(v)}" ${active?"checked":""}><span class="rs-toggle-slider"></span></label>
+          <span class="ds-list-name">${escapeHtml(v)}</span>
+          <span class="ds-count-badge">${count} livraison${count>1?"s":""}</span>
+          <span class="pill ${active?"ok":"zero"}" style="font-size:10px">${active?"Actif":"Exclu"}</span>
+        </div>`;
+      }).join("");
+    }
+
+    function renderDeliverySettingsPage() {
+      const tab = state.deliverySettingsTab;
+      const { active, excluded } = deliveryExclusionCounts();
+      const tabs = [["dates","Dates"],["shippers","Expéditeurs"],["stores","Enseignes"],["gammes","Gammes"]];
+      const showSearch = tab !== "dates";
+      return `<div style="padding:4px 0 0">
+        <div class="rs-save-bar" style="border-radius:8px;margin-bottom:14px;border:1px solid var(--line)">
+          <span class="rs-save-status" id="dsSaveStatus">${SB.client?"Synchronisé avec Supabase":"Mode local"}</span>
+          <div style="display:flex;gap:8px;align-items:center">
+            <div class="rs-badges">
+              <span class="rs-badge active" id="dsActiveBadge">${active} actifs</span>
+              <span class="rs-badge excluded" id="dsExcludedBadge">${excluded} exclus</span>
+            </div>
+            <button class="btn" id="dsSaveBtn" style="background:var(--blue);color:#fff;border-color:var(--blue)">Enregistrer</button>
+          </div>
+        </div>
+        <div class="ds-tabs">${tabs.map(([id,label]) => `<button class="ds-tab${tab===id?" active":""}" data-ds-tab="${id}">${label}</button>`).join("")}</div>
+        ${showSearch?`<div class="rs-toolbar" style="margin-bottom:12px">
+          <input class="rs-search" id="dsSearch" type="text" placeholder="Rechercher…" value="${escapeHtml(state.deliverySettingsSearch||"")}">
+          <button class="btn" id="dsActivateAll">Tout activer</button>
+          <button class="btn btn-reset" id="dsDeactivateAll">Tout désactiver</button>
+        </div>`:`<div style="margin-bottom:12px;display:flex;gap:8px">
+          <button class="btn" id="dsActivateAll">Tout activer</button>
+          <button class="btn btn-reset" id="dsDeactivateAll">Tout désactiver</button>
+        </div>`}
+        <div class="adv-card" style="padding:16px" id="dsSection">${renderDeliverySection()}</div>
+      </div>`;
+    }
+
+    function refreshDeliverySection() {
+      const el = document.getElementById("dsSection");
+      if (el) el.innerHTML = renderDeliverySection();
+      initDeliverySettingsEvents();
+      const { active, excluded } = deliveryExclusionCounts();
+      const ab = document.getElementById("dsActiveBadge"); if (ab) ab.textContent = `${active} actifs`;
+      const eb = document.getElementById("dsExcludedBadge"); if (eb) eb.textContent = `${excluded} exclus`;
+    }
+
+    function markDeliveryDirty() {
+      const s = document.getElementById("dsSaveStatus");
+      if (s) { s.textContent = "Modifications non enregistrées"; s.className = "rs-save-status dirty"; }
+      invalidateCaches(); renderKpis();
+    }
+
+    function initDeliverySettingsEvents() {
+      // Tab switches
+      document.querySelectorAll(".ds-tab").forEach(btn => {
+        btn.addEventListener("click", () => {
+          state.deliverySettingsTab = btn.dataset.dsTab;
+          state.deliverySettingsSearch = "";
+          document.getElementById("advancedPages").innerHTML = renderDeliverySettingsPage();
+          initDeliverySettingsEvents();
+        });
+      });
+      // Search
+      const dsSearch = document.getElementById("dsSearch");
+      if (dsSearch) dsSearch.addEventListener("input", () => { state.deliverySettingsSearch = dsSearch.value; refreshDeliverySection(); });
+      // Month toggles
+      document.querySelectorAll(".ds-month-toggle").forEach(cb => {
+        cb.addEventListener("change", () => {
+          const ym = cb.dataset.ym;
+          if (cb.checked) state.deliveryExclusions.dates.delete(ym); else state.deliveryExclusions.dates.add(ym);
+          markDeliveryDirty(); refreshDeliverySection();
+        });
+      });
+      // Year toggles
+      document.querySelectorAll(".ds-year-toggle").forEach(cb => {
+        cb.addEventListener("change", () => {
+          const year = parseInt(cb.dataset.year);
+          for (let m = 1; m <= 12; m++) {
+            const ym = `${year}-${String(m).padStart(2,'0')}`;
+            if (cb.checked) state.deliveryExclusions.dates.delete(ym); else state.deliveryExclusions.dates.add(ym);
+          }
+          markDeliveryDirty(); refreshDeliverySection();
+        });
+      });
+      // List item toggles
+      document.querySelectorAll(".ds-item-toggle").forEach(cb => {
+        cb.addEventListener("change", () => {
+          const { type, value } = cb.dataset;
+          const exSet = type === "shippers" ? state.deliveryExclusions.shippers : type === "stores" ? state.deliveryExclusions.stores : state.deliveryExclusions.gammes;
+          if (cb.checked) exSet.delete(value); else exSet.add(value);
+          markDeliveryDirty(); refreshDeliverySection();
+        });
+      });
+      // Tout activer / désactiver
+      const dsAct = document.getElementById("dsActivateAll");
+      if (dsAct) dsAct.addEventListener("click", () => {
+        if (!confirm("Tout activer ?")) return;
+        const tab = state.deliverySettingsTab;
+        if (tab === "dates") { state.deliveryExclusions.dates.clear(); }
+        else if (tab === "shippers") { state.deliveryExclusions.shippers.clear(); }
+        else if (tab === "stores") { state.deliveryExclusions.stores.clear(); }
+        else { state.deliveryExclusions.gammes.clear(); }
+        markDeliveryDirty(); refreshDeliverySection();
+      });
+      const dsDeact = document.getElementById("dsDeactivateAll");
+      if (dsDeact) dsDeact.addEventListener("click", () => {
+        const tab = state.deliverySettingsTab;
+        const livRows = state.rows.filter(r => r.STATUT === "LIVRAISON");
+        if (tab === "dates") {
+          const tree = buildDeliveryDateTree();
+          let total = 0; tree.forEach(months => total += months.size);
+          if (!confirm(`Désactiver ${total} mois ?`)) return;
+          tree.forEach((months, y) => months.forEach(m => state.deliveryExclusions.dates.add(`${y}-${String(m).padStart(2,'0')}`)));
+        } else {
+          const field = tab === "shippers" ? "EXPEDITEUR" : tab === "stores" ? "ENSEIGNE" : "GAMME";
+          const exSet = tab === "shippers" ? state.deliveryExclusions.shippers : tab === "stores" ? state.deliveryExclusions.stores : state.deliveryExclusions.gammes;
+          const vals = [...new Set(livRows.filter(r=>r[field]).map(r=>r[field]))];
+          if (!confirm(`Désactiver ${vals.length} éléments ?`)) return;
+          vals.forEach(v => exSet.add(v));
+        }
+        markDeliveryDirty(); refreshDeliverySection();
+      });
+      // Save
+      const dsSaveBtn = document.getElementById("dsSaveBtn");
+      if (dsSaveBtn) dsSaveBtn.addEventListener("click", async () => {
+        dsSaveBtn.disabled = true; dsSaveBtn.textContent = "Enregistrement…";
+        const ex = state.deliveryExclusions;
+        const livRows = state.rows.filter(r => r.STATUT === "LIVRAISON");
+        const tree = buildDeliveryDateTree();
+        const settings = [];
+        tree.forEach((months, y) => months.forEach(m => { const v = `${y}-${String(m).padStart(2,'0')}`; settings.push({ setting_type:"date", value:v, is_active:!ex.dates.has(v) }); }));
+        [...new Set(livRows.filter(r=>r.EXPEDITEUR).map(r=>r.EXPEDITEUR))].forEach(v => settings.push({ setting_type:"shipper", value:v, is_active:!ex.shippers.has(v) }));
+        [...new Set(livRows.filter(r=>r.ENSEIGNE).map(r=>r.ENSEIGNE))].forEach(v => settings.push({ setting_type:"store", value:v, is_active:!ex.stores.has(v) }));
+        [...new Set(livRows.filter(r=>r.GAMME).map(r=>r.GAMME))].forEach(v => settings.push({ setting_type:"gamme", value:v, is_active:!ex.gammes.has(v) }));
+        localStorage.setItem("delivery_exclusions", JSON.stringify({ dates:[...ex.dates], shippers:[...ex.shippers], stores:[...ex.stores], gammes:[...ex.gammes] }));
+        let ok = true;
+        if (SB.client) ok = await SB.saveDeliverySettings(settings);
+        dsSaveBtn.disabled = false; dsSaveBtn.textContent = "Enregistrer";
+        const s = document.getElementById("dsSaveStatus");
+        if (s) { s.textContent = ok?"Enregistré ✓":"Erreur — sauvegardé localement"; s.className = `rs-save-status ${ok?"saved":"dirty"}`; }
+        if (ok) showToast("✅ Paramètres livraisons enregistrés");
+      });
+    }
+
+    function refreshRuptureTable() {
+      const allRuptures = state.skuRows.filter(r => r.alert === "rupture" || state.ruptureExclusions.has(r.canonicalName));
+      const filtered = filterRuptureSettingsRows(allRuptures);
+      const tbody = document.querySelector(".rs-table tbody");
+      if (tbody) {
+        tbody.innerHTML = filtered.length ? filtered.map(r => {
+          const excluded = state.ruptureExclusions.has(r.canonicalName);
+          const hasProjet = (r.ruptureProjet || 0) >= 1;
+          return `<tr class="${excluded ? "excluded" : hasProjet ? "row-rupture-projet" : ""}">
+            <td><label class="rs-toggle"><input type="checkbox" class="rs-toggle-input" data-name="${escapeHtml(r.canonicalName)}" ${excluded ? "" : "checked"}><span class="rs-toggle-slider"></span></label></td>
+            <td>${escapeHtml(r.canonicalName)}</td>
+            <td>${escapeHtml(r.gamme || "")}</td>
+            <td style="text-align:center">${r.ruptureStandby||0}</td>
+            <td style="text-align:center">${r.ruptureLivraison||0}</td>
+            <td style="text-align:center">${r.ruptureMagasin||0}</td>
+            <td style="text-align:center">${r.ruptureProjet||0}</td>
+            <td><span class="pill ${excluded ? "zero" : "rupture"}">${excluded ? "Exclue" : "Rupture active"}</span></td>
+          </tr>`;
+        }).join("") : `<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--muted)">Aucun résultat</td></tr>`;
+        tbody.querySelectorAll(".rs-toggle-input").forEach(cb => {
+          cb.addEventListener("change", () => {
+            const name = cb.dataset.name;
+            if (cb.checked) state.ruptureExclusions.delete(name); else state.ruptureExclusions.add(name);
+            invalidateCaches(); renderKpis();
+            const s = document.getElementById("rsSaveStatus");
+            if (s) { s.textContent = "Modifications non enregistrées"; s.className = "rs-save-status dirty"; }
+            const row = cb.closest("tr"); if (row) row.classList.toggle("excluded", !cb.checked);
+            const pill = row && row.querySelector(".pill"); if (pill) { pill.className = `pill ${cb.checked?"rupture":"zero"}`; pill.textContent = cb.checked?"Rupture active":"Exclue"; }
+            const ab = document.querySelector(".rs-badge.active"); if (ab) ab.textContent = `${activeRuptureRows().length} actives`;
+            const eb = document.querySelector(".rs-badge.excluded"); if (eb) eb.textContent = `${state.ruptureExclusions.size} exclues`;
+          });
+        });
+      }
+      const ab = document.querySelector(".rs-badge.active"); if (ab) ab.textContent = `${activeRuptureRows().length} actives`;
+      const eb = document.querySelector(".rs-badge.excluded"); if (eb) eb.textContent = `${state.ruptureExclusions.size} exclues`;
+    }
+
+    function filterRuptureSettingsRows(allRuptures) {
+      const search = (state.ruptureSettingsSearch || "").toLowerCase();
+      let filtered = search ? allRuptures.filter(r => r.canonicalName.toLowerCase().includes(search) || (r.gamme||"").toLowerCase().includes(search)) : allRuptures;
+      if (state.ruptureStatusFilter === "active") filtered = filtered.filter(r => !state.ruptureExclusions.has(r.canonicalName));
+      else if (state.ruptureStatusFilter === "excluded") filtered = filtered.filter(r => state.ruptureExclusions.has(r.canonicalName));
+      if (state.ruptureGammeFilter) filtered = filtered.filter(r => (r.gamme||"") === state.ruptureGammeFilter);
+      return filtered;
+    }
+
+    function renderRuptureSettingsPage() {
+      const allRuptures = state.skuRows.filter(r => r.alert === "rupture" || state.ruptureExclusions.has(r.canonicalName));
+      const filtered = filterRuptureSettingsRows(allRuptures);
+      const activeCount = allRuptures.filter(r => !state.ruptureExclusions.has(r.canonicalName)).length;
+      const excludedCount = state.ruptureExclusions.size;
+
+      const rows = filtered.map(r => {
+        const excluded = state.ruptureExclusions.has(r.canonicalName);
+        const hasProjet = (r.ruptureProjet || 0) >= 1;
+        return `<tr class="${excluded ? "excluded" : hasProjet ? "row-rupture-projet" : ""}">
+          <td>
+            <label class="rs-toggle" title="${excluded ? "Exclue" : "Active"}">
+              <input type="checkbox" class="rs-toggle-input" data-name="${escapeHtml(r.canonicalName)}" ${excluded ? "" : "checked"}>
+              <span class="rs-toggle-slider"></span>
+            </label>
+          </td>
+          <td>${escapeHtml(r.canonicalName)}</td>
+          <td>${escapeHtml(r.gamme || "")}</td>
+          <td style="text-align:center">${r.ruptureStandby||0}</td>
+          <td style="text-align:center">${r.ruptureLivraison||0}</td>
+          <td style="text-align:center">${r.ruptureMagasin||0}</td>
+          <td style="text-align:center">${(r.ruptureProjet||0) >= 1 ? `<span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:#c0392b;color:#fff;font-size:12px;font-weight:700">${r.ruptureProjet}</span>` : "0"}</td>
+          <td><span class="pill ${excluded ? "zero" : "rupture"}">${excluded ? "Exclue" : "Rupture active"}</span></td>
+        </tr>`;
+      }).join("");
+
+      return `
+        <div style="padding:4px 0 0">
+          <div class="rs-save-bar" style="border-radius:8px;margin-bottom:14px;border:1px solid var(--line)">
+            <span class="rs-save-status" id="rsSaveStatus">${SB.client ? "Synchronisé avec Supabase" : "Mode local"}</span>
+            <div style="display:flex;gap:8px;align-items:center">
+              <div class="rs-badges">
+                <span class="rs-badge active">${activeCount} actives</span>
+                <span class="rs-badge excluded">${excludedCount} exclues</span>
+              </div>
+              <button class="btn" id="rsSaveBtn" type="button" style="background:var(--blue);color:#fff;border-color:var(--blue)">Enregistrer</button>
+            </div>
+          </div>
+          <div class="rs-toolbar">
+            <input class="rs-search" id="rsSearch" type="text" placeholder="Rechercher un produit…" value="${escapeHtml(state.ruptureSettingsSearch||"")}">
+            <select class="rs-search" id="rsStatusFilter" style="flex:unset;width:auto">
+              <option value="" ${!state.ruptureStatusFilter?"selected":""}>Tous les statuts</option>
+              <option value="active" ${state.ruptureStatusFilter==="active"?"selected":""}>Actives uniquement</option>
+              <option value="excluded" ${state.ruptureStatusFilter==="excluded"?"selected":""}>Exclues uniquement</option>
+            </select>
+            <select class="rs-search" id="rsGammeFilter" style="flex:unset;width:auto">
+              <option value="">Toutes les gammes</option>
+              ${[...new Set(state.skuRows.filter(r => r.alert==="rupture"||state.ruptureExclusions.has(r.canonicalName)).map(r=>r.gamme||"").filter(Boolean))].sort().map(g=>`<option value="${escapeHtml(g)}" ${state.ruptureGammeFilter===g?"selected":""}>${escapeHtml(g)}</option>`).join("")}
+            </select>
+            <button class="btn" id="rsActivateAll" type="button">Tout activer</button>
+            <button class="btn btn-reset" id="rsDeactivateAll" type="button">Tout désactiver</button>
+          </div>
+          <div class="adv-card" style="padding:0;overflow:hidden;margin-bottom:0">
+            <div style="overflow-x:auto">
+              <table class="rs-table">
+                <thead><tr>
+                  <th style="width:50px">Actif</th>
+                  <th>Produit</th>
+                  <th>Gamme</th>
+                  <th style="text-align:center">Standby</th>
+                  <th style="text-align:center">Livraison</th>
+                  <th style="text-align:center">Magasin</th>
+                  <th style="text-align:center">Projet</th>
+                  <th>Statut</th>
+                </tr></thead>
+                <tbody>${rows || `<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--muted)">Aucune rupture détectée</td></tr>`}</tbody>
+              </table>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function hslExclusionCounts() {
+      const tree = buildHsLivraisonDateTree();
+      let total = 0; tree.forEach(months => total += months.size);
+      let excluded = 0;
+      state.hsLivraisonExclusions.dates.forEach(ym => {
+        const [y, m] = ym.split("-");
+        const months = tree.get(parseInt(y));
+        if (months && months.has(parseInt(m))) excluded++;
+      });
+      return { active: total - excluded, excluded };
+    }
+    function renderHslDateSection() {
+      const tree = buildHsLivraisonDateTree();
+      const ex = state.hsLivraisonExclusions;
+      const allYears = new Set([...tree.keys()]);
+      ex.dates.forEach(ym => { const y = parseInt(ym.split("-")[0]); if (y >= 2000) allYears.add(y); });
+      if (!allYears.size) return `<div style="text-align:center;padding:24px;color:var(--muted)">Aucun HS Livraison avec date détectée</div>`;
+      return [...allYears].sort((a,b) => b-a).map(year => {
+        const treeMonths = tree.get(year) || new Set();
+        const exMonths = new Set();
+        ex.dates.forEach(ym => { const [y,m] = ym.split("-"); if (parseInt(y)===year) exMonths.add(parseInt(m)); });
+        const allMonths = new Set([...treeMonths, ...exMonths]);
+        const months = [...allMonths].sort((a,b) => a-b);
+        const ymKeys = months.map(m => `${year}-${String(m).padStart(2,'0')}`);
+        const excCount = ymKeys.filter(k => ex.dates.has(k)).length;
+        const partial = excCount > 0 && excCount < ymKeys.length;
+        const allExc = excCount === ymKeys.length;
+        return `<div class="ds-year-block">
+          <div class="ds-year-header">
+            <label class="rs-toggle"><input type="checkbox" class="hsl-year-toggle" data-year="${year}" ${allExc?"":"checked"}><span class="rs-toggle-slider"></span></label>
+            <span class="ds-year-label">${year}</span>
+            ${partial?`<span style="font-size:10px;color:#d98200;font-weight:600">Partiel</span>`:""}
+            <span class="ds-count-badge">${ymKeys.length - excCount}/${ymKeys.length} actifs</span>
+          </div>
+          <div class="ds-months">${months.map(m => {
+            const ym = `${year}-${String(m).padStart(2,'0')}`;
+            const active = !ex.dates.has(ym);
+            const count = state.rows.filter(r => r.STATUT==="HS" && r.EMPLACEMENT!=="KUBE DESIGN" && r.__livraisonDate && r.__livraisonDate.getFullYear()===year && r.__livraisonDate.getMonth()+1===m).length;
+            return `<div class="ds-month-item${active?"":" excluded"}">
+              <label class="rs-toggle"><input type="checkbox" class="hsl-month-toggle" data-ym="${ym}" ${active?"checked":""}><span class="rs-toggle-slider"></span></label>
+              <span>${FRENCH_MONTHS[m-1]}${count?` <span style="font-size:10px;color:var(--muted)">(${count})</span>`:""}</span>
+            </div>`;
+          }).join("")}</div>
+        </div>`;
+      }).join("");
+    }
+    function refreshHslSection() {
+      const el = document.getElementById("hslSection");
+      if (el) el.innerHTML = renderHslDateSection();
+      initHsLivraisonSettingsEvents();
+      const { active, excluded } = hslExclusionCounts();
+      const ab = document.getElementById("hslActiveBadge"); if (ab) ab.textContent = `${active} actifs`;
+      const eb = document.getElementById("hslExcludedBadge"); if (eb) eb.textContent = `${excluded} exclus`;
+    }
+    function markHslDirty() {
+      const s = document.getElementById("hslSaveStatus");
+      if (s) { s.textContent = "Modifications non enregistrées"; s.className = "rs-save-status dirty"; }
+      invalidateCaches(); renderKpis();
+    }
+    function renderHsLivraisonSettingsPage() {
+      const { active, excluded } = hslExclusionCounts();
+      return `<div style="padding:4px 0 0">
+        <div class="rs-save-bar" style="border-radius:8px;margin-bottom:14px;border:1px solid var(--line)">
+          <span class="rs-save-status" id="hslSaveStatus">${SB.client?"Synchronisé avec Supabase":"Mode local"}</span>
+          <div style="display:flex;gap:8px;align-items:center">
+            <div class="rs-badges">
+              <span class="rs-badge active" id="hslActiveBadge">${active} actifs</span>
+              <span class="rs-badge excluded" id="hslExcludedBadge">${excluded} exclus</span>
+            </div>
+            <button class="btn" id="hslSaveBtn" style="background:var(--blue);color:#fff;border-color:var(--blue)">Enregistrer</button>
+          </div>
+        </div>
+        <div style="margin-bottom:12px;display:flex;gap:8px">
+          <button class="btn" id="hslActivateAll">Tout activer</button>
+          <button class="btn btn-reset" id="hslDeactivateAll">Tout désactiver</button>
+        </div>
+        <div class="adv-card" style="padding:16px" id="hslSection">${renderHslDateSection()}</div>
+      </div>`;
+    }
+
+    function initHsLivraisonSettingsEvents() {
+      // Month toggles
+      document.querySelectorAll(".hsl-month-toggle").forEach(cb => {
+        cb.addEventListener("change", () => {
+          const ym = cb.dataset.ym;
+          if (cb.checked) state.hsLivraisonExclusions.dates.delete(ym); else state.hsLivraisonExclusions.dates.add(ym);
+          markHslDirty(); refreshHslSection();
+        });
+      });
+      // Year toggles
+      document.querySelectorAll(".hsl-year-toggle").forEach(cb => {
+        cb.addEventListener("change", () => {
+          const year = parseInt(cb.dataset.year);
+          for (let m = 1; m <= 12; m++) {
+            const ym = `${year}-${String(m).padStart(2,'0')}`;
+            if (cb.checked) state.hsLivraisonExclusions.dates.delete(ym); else state.hsLivraisonExclusions.dates.add(ym);
+          }
+          markHslDirty(); refreshHslSection();
+        });
+      });
+      // Tout activer
+      const hslActivateAll = document.getElementById("hslActivateAll");
+      if (hslActivateAll) hslActivateAll.addEventListener("click", () => {
+        if (!confirm("Tout activer ?")) return;
+        state.hsLivraisonExclusions.dates.clear();
+        markHslDirty(); refreshHslSection();
+      });
+      // Tout désactiver
+      const hslDeactivateAll = document.getElementById("hslDeactivateAll");
+      if (hslDeactivateAll) hslDeactivateAll.addEventListener("click", () => {
+        const tree = buildHsLivraisonDateTree();
+        let total = 0; tree.forEach(months => total += months.size);
+        if (!confirm(`Désactiver ${total} mois ?`)) return;
+        tree.forEach((months, y) => months.forEach(m => state.hsLivraisonExclusions.dates.add(`${y}-${String(m).padStart(2,'0')}`)));
+        markHslDirty(); refreshHslSection();
+      });
+      // Save
+      const hslSaveBtn = document.getElementById("hslSaveBtn");
+      if (hslSaveBtn) hslSaveBtn.addEventListener("click", async () => {
+        hslSaveBtn.disabled = true; hslSaveBtn.textContent = "Enregistrement…";
+        const ex = state.hsLivraisonExclusions;
+        const tree = buildHsLivraisonDateTree();
+        const settings = [];
+        tree.forEach((months, y) => months.forEach(m => { const v = `${y}-${String(m).padStart(2,'0')}`; settings.push({ setting_type:"date", value:v, is_active:!ex.dates.has(v) }); }));
+        localStorage.setItem("hsl_date_exclusions", JSON.stringify([...ex.dates]));
+        let ok = true;
+        if (SB.client) ok = await SB.saveHsLivraisonSettings(settings);
+        hslSaveBtn.disabled = false; hslSaveBtn.textContent = "Enregistrer";
+        const s = document.getElementById("hslSaveStatus");
+        if (s) { s.textContent = ok ? "Enregistré ✓" : "Erreur — sauvegardé localement"; s.className = `rs-save-status ${ok?"saved":"dirty"}`; }
+        if (ok) showToast("✅ Paramètres HS Livraison enregistrés");
+      });
+    }
+
     function renderAdvancedPage(tab) {
       const el = document.getElementById("advancedPages");
       if (tab === "dashboard") {
-        if (state.charts["ruptureChart"]) {
-          state.charts["ruptureChart"].destroy();
-          delete state.charts["ruptureChart"];
-        }
+        if (state.charts["ruptureChart"]) { state.charts["ruptureChart"].destroy(); delete state.charts["ruptureChart"]; }
+        if (state.charts["anomalyChart"]) { state.charts["anomalyChart"].destroy(); delete state.charts["anomalyChart"]; }
         el.innerHTML = renderDashboard();
-        setTimeout(() => initRuptureChart(), 0);
-      }
-      else if (tab === "history") {
-        el.innerHTML = renderHistoryPage();
-        // [SUPABASE] Charger l'historique KPI si connecté et pas encore en cache
+        renderRuptureChart();
+        renderAnomalyChart();
         if (SB.client && state.sbKpiHistory === null) {
           SB.fetchHistory().then(rows => {
             state.sbKpiHistory = rows || [];
+            if (state.currentTab === "dashboard") { renderRuptureChart(); renderAnomalyChart(); }
+          });
+        }
+      }
+      else if (tab === "history") {
+        el.innerHTML = renderHistoryPage();
+        if (SB.client && state.sbKpiHistory === null) {
+          SB.fetchHistory().then(async rows => {
+            state.sbKpiHistory = rows || [];
+            // Recalcul HS + Anomalies automatique une fois par session
+            if (!state._recalcDoneV2) {
+              state._recalcDoneV2 = true;
+              try {
+                const { data: imports } = await SB.client.from("imports").select("id,file_path,original_filename,file_name").not("file_path","is",null);
+                if (imports?.length) {
+                  for (const imp of imports) {
+                    try {
+                      const r = await _downloadAndParseImport(imp);
+                      const norm = normalizeRows(r);
+                      const hsKube = norm.filter(x => x.STATUT === "HS" && x.EMPLACEMENT === "KUBE DESIGN").length;
+                      const anomaliesCount = detectAnomalies(norm).length;
+                      await SB.client.from("kpi_snapshots").update({ hs: hsKube, anomalies: anomaliesCount }).eq("import_id", imp.id);
+                    } catch(e) {}
+                  }
+                  _apiCache.invalidate("history");
+                  state.sbKpiHistory = null;
+                  const fresh = await SB.fetchHistory();
+                  state.sbKpiHistory = fresh || [];
+                }
+              } catch(e) {}
+            }
             if (state.currentTab === "history") {
               document.getElementById("advancedPages").innerHTML = renderHistoryPage();
               initAdvancedPageEvents();
@@ -1915,10 +2792,184 @@
           });
         }
       }
+      else if (tab === "ruptureSettings") {
+        el.innerHTML = renderRuptureSettingsPage();
+      }
+      else if (tab === "deliverySettings") {
+        el.innerHTML = renderDeliverySettingsPage();
+        initDeliverySettingsEvents();
+      }
+      else if (tab === "hsLivraisonSettings") {
+        el.innerHTML = renderHsLivraisonSettingsPage();
+        initHsLivraisonSettingsEvents();
+      }
       initAdvancedPageEvents();
     }
 
     function initAdvancedPageEvents() {
+      const exportPdfBtn = document.getElementById("exportPdfBtn");
+      if (exportPdfBtn) {
+        exportPdfBtn.addEventListener("click", async () => {
+          exportPdfBtn.disabled = true;
+          exportPdfBtn.textContent = "Génération…";
+          try {
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+            const pageW = pdf.internal.pageSize.getWidth();
+            const pageH = pdf.internal.pageSize.getHeight();
+            const margin = 10;
+            let currentY = margin;
+
+            // En-tête
+            pdf.setFontSize(11); pdf.setTextColor(30);
+            pdf.setFont(undefined, "bold");
+            pdf.text("Dashboard Stock — Kube Design", margin, currentY);
+            pdf.setFont(undefined, "normal");
+            pdf.setFontSize(9); pdf.setTextColor(120);
+            pdf.text(`${state.fileName || ""}  |  ${new Date().toLocaleDateString("fr-FR")}`, margin, currentY + 5);
+            currentY += 12;
+
+            // KPIs (6 indicateurs) dans un div temporaire caché
+            const m = computeMetrics();
+            const pdfKpis = [
+              { label: "Réservé projet", value: m.project, color: "#1565c0" },
+              { label: "HS Kube Design", value: m.hsKube, color: "#c62828" },
+              { label: "HS Livraison",   value: m.hsLivraison, color: "#c62828" },
+              { label: "Stock de 5 à 10", value: m.low, color: "#e65100" },
+              { label: "Stock de 0 à 5", value: m.critical, color: "#e65100" },
+              { label: "Ruptures",       value: m.rupture, color: "#b71c1c" },
+              { label: "Anomalies",      value: m.anomalies, color: "#c62828" },
+            ];
+            const kpiDiv = document.createElement("div");
+            kpiDiv.style.cssText = "position:fixed;left:-9999px;top:0;background:#f4f6f8;padding:12px;width:1100px;display:grid;grid-template-columns:repeat(7,1fr);gap:10px";
+            kpiDiv.innerHTML = pdfKpis.map(k => `<div style="background:#fff;border-radius:10px;padding:14px 10px;text-align:center;border:1px solid #e8edf2"><div style="font-size:28px;font-weight:700;color:${k.color}">${k.value ?? 0}</div><div style="font-size:11px;color:#667385;margin-top:4px">${k.label}</div></div>`).join("");
+            document.body.appendChild(kpiDiv);
+            const kpiCanvas = await html2canvas(kpiDiv, { scale: 2, backgroundColor: "#f4f6f8" });
+            document.body.removeChild(kpiDiv);
+            const kpiImg = kpiCanvas.toDataURL("image/png");
+            const kpiH = ((pageW - margin * 2) / kpiCanvas.width) * kpiCanvas.height;
+            pdf.addImage(kpiImg, "PNG", margin, currentY, pageW - margin * 2, kpiH);
+            currentY += kpiH + 6;
+
+            // Espace restant pour les graphiques
+            const remaining = pageH - currentY - margin;
+            const gammeH = remaining * 0.45;
+            const evolH = remaining * 0.45;
+            const gap = (remaining - gammeH - evolH) / 2;
+
+            const addChartAt = (canvasId, title, x, y, w, h) => {
+              const canvas = document.getElementById(canvasId);
+              if (!canvas) return;
+              pdf.setFontSize(8); pdf.setTextColor(60); pdf.setFont(undefined, "bold");
+              pdf.text(title, x, y + 3);
+              const imgData = canvas.toDataURL("image/png");
+              const ratio = canvas.width / canvas.height;
+              let imgW = w, imgH = imgW / ratio;
+              if (imgH > h - 5) { imgH = h - 5; imgW = imgH * ratio; }
+              pdf.addImage(imgData, "PNG", x, y + 5, imgW, imgH);
+            };
+
+            addChartAt("rangeChart", "Stock par gamme à Kube Design (HS exclus)", margin, currentY, pageW - margin * 2, gammeH);
+            currentY += gammeH + gap;
+
+            // Ruptures + Anomalies côte à côte
+            const halfW = (pageW - margin * 2 - 6) / 2;
+            addChartAt("ruptureChart", "Évolution des ruptures", margin, currentY, halfW, evolH);
+            addChartAt("anomalyChart", "Évolution des anomalies", margin + halfW + 6, currentY, halfW, evolH);
+
+            pdf.save(`Dashboard_Stock_${new Date().toLocaleDateString("fr-FR").replace(/\//g,"-")}.pdf`);
+          } catch(e) { console.error("Export PDF:", e); }
+          exportPdfBtn.disabled = false;
+          exportPdfBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg> Exporter PDF`;
+        });
+      }
+      // ── Paramètres ruptures ──────────────────────────────────────────
+      const rsSearch = document.getElementById("rsSearch");
+      if (rsSearch) {
+        rsSearch.addEventListener("input", () => {
+          state.ruptureSettingsSearch = rsSearch.value;
+          refreshRuptureTable();
+        });
+      }
+      const rsStatusFilter = document.getElementById("rsStatusFilter");
+      if (rsStatusFilter) {
+        rsStatusFilter.addEventListener("change", () => {
+          state.ruptureStatusFilter = rsStatusFilter.value;
+          refreshRuptureTable();
+        });
+      }
+      const rsGammeFilter = document.getElementById("rsGammeFilter");
+      if (rsGammeFilter) {
+        rsGammeFilter.addEventListener("change", () => {
+          state.ruptureGammeFilter = rsGammeFilter.value;
+          refreshRuptureTable();
+        });
+      }
+      document.getElementById("advancedPages").querySelectorAll(".rs-toggle-input").forEach(cb => {
+        cb.addEventListener("change", () => {
+          const name = cb.dataset.name;
+          if (cb.checked) state.ruptureExclusions.delete(name);
+          else state.ruptureExclusions.add(name);
+          invalidateCaches();
+          renderKpis();
+          const statusEl = document.getElementById("rsSaveStatus");
+          if (statusEl) { statusEl.textContent = "Modifications non enregistrées"; statusEl.className = "rs-save-status dirty"; }
+          const row = cb.closest("tr");
+          if (row) {
+            row.classList.toggle("excluded", !cb.checked);
+            const pill = row.querySelector(".pill");
+            if (pill) { pill.className = `pill ${cb.checked ? "rupture" : "zero"}`; pill.textContent = cb.checked ? "Rupture active" : "Exclue"; }
+          }
+          const activeBadge = document.querySelector(".rs-badge.active");
+          const excludedBadge = document.querySelector(".rs-badge.excluded");
+          if (activeBadge) activeBadge.textContent = `${state.skuRows.filter(r => r.alert === "rupture" && !isRuptureExcluded(r)).length} actives`;
+          if (excludedBadge) excludedBadge.textContent = `${state.ruptureExclusions.size} exclues`;
+        });
+      });
+      const rsActivateAll = document.getElementById("rsActivateAll");
+      if (rsActivateAll) {
+        rsActivateAll.addEventListener("click", () => {
+          const allRuptures = state.skuRows.filter(r => r.alert === "rupture" || state.ruptureExclusions.has(r.canonicalName));
+          const visible = filterRuptureSettingsRows(allRuptures);
+          const label = visible.length < allRuptures.length ? `les ${visible.length} produits affichés` : `toutes les ruptures`;
+          if (!confirm(`Activer ${label} ?`)) return;
+          visible.forEach(r => state.ruptureExclusions.delete(r.canonicalName));
+          invalidateCaches(); renderKpis();
+          refreshRuptureTable();
+          const s = document.getElementById("rsSaveStatus");
+          if (s) { s.textContent = "Modifications non enregistrées"; s.className = "rs-save-status dirty"; }
+        });
+      }
+      const rsDeactivateAll = document.getElementById("rsDeactivateAll");
+      if (rsDeactivateAll) {
+        rsDeactivateAll.addEventListener("click", () => {
+          const allRuptures = state.skuRows.filter(r => r.alert === "rupture" || state.ruptureExclusions.has(r.canonicalName));
+          const visible = filterRuptureSettingsRows(allRuptures);
+          const label = visible.length < allRuptures.length ? `les ${visible.length} produits affichés` : `les ${visible.length} ruptures`;
+          if (!confirm(`Désactiver ${label} ?`)) return;
+          visible.forEach(r => state.ruptureExclusions.add(r.canonicalName));
+          invalidateCaches(); renderKpis();
+          refreshRuptureTable();
+          const s = document.getElementById("rsSaveStatus");
+          if (s) { s.textContent = "Modifications non enregistrées"; s.className = "rs-save-status dirty"; }
+        });
+      }
+      const rsSaveBtn = document.getElementById("rsSaveBtn");
+      if (rsSaveBtn) {
+        rsSaveBtn.addEventListener("click", async () => {
+          rsSaveBtn.disabled = true; rsSaveBtn.textContent = "Enregistrement…";
+          const allRuptures = state.skuRows.filter(r => r.alert === "rupture" || state.ruptureExclusions.has(r.canonicalName));
+          const settings = allRuptures.map(r => ({ product_reference: r.canonicalName, is_active: !state.ruptureExclusions.has(r.canonicalName) }));
+          localStorage.setItem("rupture_exclusions", JSON.stringify([...state.ruptureExclusions]));
+          let ok = true;
+          if (SB.client) ok = await SB.saveRuptureSettings(settings);
+          rsSaveBtn.disabled = false; rsSaveBtn.textContent = "Enregistrer";
+          const s = document.getElementById("rsSaveStatus");
+          if (s) { s.textContent = ok ? "Enregistré ✓" : "Erreur — sauvegardé localement"; s.className = `rs-save-status ${ok ? "saved" : "dirty"}`; }
+          if (ok) showToast("✅ Paramètres ruptures enregistrés");
+        });
+      }
+
       document.getElementById("advancedPages").querySelectorAll("[data-adv-action]").forEach(el => {
         el.addEventListener("click", function() {
           handleAdvAction(this.dataset.advAction, this.dataset.advFilter);
@@ -1965,6 +3016,7 @@
           }
         });
       });
+
     }
 
     function handleAdvAction(action, filter) {
@@ -2004,140 +3056,309 @@
         `<tr class="clickable-row" data-adv-action="drawer" data-adv-filter="Stock Kube"><td>${escapeHtml(g)}</td><td><strong>${n}</strong></td><td style="color:var(--muted);font-size:11px">${gammes.length > 0 && state.rows.filter(r => r.STATUT === "STOCK KUBE" && r.EMPLACEMENT === "KUBE DESIGN").length > 0 ? ((n / state.rows.filter(r => r.STATUT === "STOCK KUBE" && r.EMPLACEMENT === "KUBE DESIGN").length) * 100).toFixed(1) + "%" : "—"}</td></tr>`
       ).join("");
 
-      // Container du graphique — initRuptureChart() gère le contenu de façon async
-      const ruptureChartHtml = `<div id="ruptureChartContainer" style="min-height:220px;display:flex;align-items:center;justify-content:center"><canvas id="ruptureChart" style="height:220px;width:100%"></canvas></div>`;
-
       return `
-        <div class="adv-section-title">Évolution des ruptures</div>
-        <div class="adv-card" style="margin-bottom:14px;padding:14px">
-          ${ruptureChartHtml}
+        <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+          <button id="exportPdfBtn" type="button" style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:6px 14px;border-radius:7px;border:1px solid #d0d7e2;background:#fff;cursor:pointer;color:var(--ink)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+            Exporter PDF
+          </button>
         </div>
-        <div class="adv-section-title">Répartition du stock Kube par gamme</div>
-        <div class="adv-card adv-clickable" data-adv-action="drawer" data-adv-filter="Stock Kube" style="margin-bottom:14px">
-          ${gammes.length ? `<table class="adv-table"><thead><tr><th>Gamme</th><th>Unités</th><th>%</th></tr></thead><tbody>${gammeRows}</tbody></table>` : `<div class="history-empty">Aucune donnée — importez un fichier SODA</div>`}
-          <div class="adv-drill-hint">Cliquer pour voir toutes les lignes Stock Kube</div>
+        <div id="pdfDashboard">
+        <div style="display:flex;gap:12px;margin-bottom:14px">
+          <div style="flex:1;min-width:0">
+            <div class="adv-section-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+              Évolution des ruptures
+              <div style="display:flex;align-items:center;gap:8px">
+                <span id="ruptureTrend" style="font-size:11px;font-weight:500;flex-shrink:0"></span>
+                <select id="ruptureChartPeriodSelect" style="font-size:11px;padding:2px 6px">
+                  <option value="all" ${state.ruptureChartPeriod==="all"?"selected":""}>Tout</option>
+                  <option value="week" ${state.ruptureChartPeriod==="week"?"selected":""}>Semaines</option>
+                  <option value="month" ${state.ruptureChartPeriod==="month"?"selected":""}>Mois</option>
+                  <option value="year" ${state.ruptureChartPeriod==="year"?"selected":""}>Année</option>
+                </select>
+              </div>
+            </div>
+            <div class="adv-card" style="padding:14px">
+              <div id="ruptureChartContainer" style="position:relative;height:180px;display:flex;align-items:center;justify-content:center">
+                <canvas id="ruptureChart"></canvas>
+              </div>
+            </div>
+          </div>
+          <div style="flex:1;min-width:0">
+            <div class="adv-section-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+              Évolution des anomalies
+              <div style="display:flex;align-items:center;gap:8px">
+                <span id="anomalyTrend" style="font-size:11px;font-weight:500;flex-shrink:0"></span>
+                <select id="anomalyChartPeriodSelect" style="font-size:11px;padding:2px 6px">
+                  <option value="all" ${state.anomalyChartPeriod==="all"?"selected":""}>Tout</option>
+                  <option value="week" ${state.anomalyChartPeriod==="week"?"selected":""}>Semaines</option>
+                  <option value="month" ${state.anomalyChartPeriod==="month"?"selected":""}>Mois</option>
+                  <option value="year" ${state.anomalyChartPeriod==="year"?"selected":""}>Année</option>
+                </select>
+              </div>
+            </div>
+            <div class="adv-card" style="padding:14px">
+              <div id="anomalyChartContainer" style="position:relative;height:180px;display:flex;align-items:center;justify-content:center">
+                <canvas id="anomalyChart"></canvas>
+              </div>
+            </div>
+          </div>
         </div>
-        ${skuAlert.length ? `
-        <div class="adv-section-title">Produits en tension — action requise</div>
-        <div class="adv-card adv-clickable" data-adv-action="tab" data-adv-filter="rupture">
-          <table class="adv-table">
-            <thead><tr><th>Produit</th><th>Gamme</th><th>Stock Kube</th><th>Alerte</th></tr></thead>
-            <tbody>${skuAlert.slice(0,15).map(r=>`<tr><td>${escapeHtml(r.canonicalName||"")}</td><td>${escapeHtml(r.gamme||"")}</td><td><strong>${r.qtyKube}</strong></td><td>${escapeHtml(r.alertLabel||"")}</td></tr>`).join("")}</tbody>
-          </table>
-          <div class="adv-drill-hint">Cliquer pour ouvrir l'onglet Ruptures</div>
-        </div>` : `<div class="adv-card" style="text-align:center;color:var(--green);padding:20px;font-weight:600">Aucun produit en tension</div>`}
+        </div>
       `;
     }
 
-    async function initRuptureChart() {
-      // Indiquer le chargement — ref fraîche avant l'await
-      const c0 = document.getElementById("ruptureChartContainer");
-      if (!c0) return;
-      c0.innerHTML = `<span style="color:var(--muted);font-size:12px">Chargement historique…</span>`;
-
-      if (!SB.client) {
-        const c = document.getElementById("ruptureChartContainer");
-        if (c) c.innerHTML = `<span style="color:var(--muted);font-size:12px">Non connecté à Supabase</span>`;
-        return;
-      }
-
-      console.log("%c[RUPTURE CHART INIT]", "color:#6a1b9a;font-weight:bold", "Requête imports + kpi_snapshots…");
-
-      let histPoints = [];
-      try {
-        // Requêtes parallèles pour gagner du temps
-        const [r1, r2] = await Promise.all([
-          SB.client.from("imports")
-            .select("id, imported_at, file_name, original_filename")
-            .order("imported_at", { ascending: true }).limit(50),
-          SB.client.from("kpi_snapshots")
-            .select("import_id, alert_rupture").limit(50)
-        ]);
-
-        if (r1.error) throw new Error("imports: " + r1.error.message);
-        console.log("[RUPTURE CHART INIT] imports:", r1.data?.length ?? 0, "| kpi_snapshots:", r2.data?.length ?? 0);
-
-        const snapMap = {};
-        (r2.data || []).forEach(s => { snapMap[s.import_id] = s.alert_rupture ?? 0; });
-
-        histPoints = (r1.data || []).map(imp => ({
-          date: new Date(imp.imported_at),
-          rupture: snapMap[imp.id] ?? 0,
-          label: imp.original_filename || imp.file_name || ""
-        })).filter(p => !isNaN(p.date.getTime()));
-
-      } catch(e) {
-        console.error("[RUPTURE CHART INIT] Erreur:", e.message);
-        const c = document.getElementById("ruptureChartContainer");
-        if (c) c.innerHTML = `<span style="color:var(--red);font-size:12px">Erreur : ${e.message}</span>`;
-        return;
-      }
-
-      console.log("%c[RUPTURE HISTORY READY]", "color:#2e7d32;font-weight:bold",
-        `${histPoints.length} points`, histPoints.map(p => `${p.date.toLocaleDateString("fr-FR")}→${p.rupture}`).join(" | "));
-
-      // Référence FRAÎCHE après les awaits — le DOM a pu être recréé entre-temps
+    function renderRuptureChart() {
       const container = document.getElementById("ruptureChartContainer");
       if (!container) return;
 
-      if (histPoints.length < 2) {
-        container.innerHTML = `<span style="color:var(--muted);font-size:12px">Pas assez d'historique — au moins 2 imports requis</span>`;
+      const hist = state.sbKpiHistory;
+      if (hist === null) {
+        container.innerHTML = `<span style="color:var(--muted);font-size:12px">${SB.client ? "Chargement historique…" : "Non connecté à Supabase"}</span>`;
+        return;
+      }
+      const points = [...hist].reverse()
+        .map(r => {
+          const label = r.originalFilename || r.fileName || "";
+          const date = parseDateFromFilename(label) || r.date;
+          return { date, rupture: r.rupture ?? 0, label };
+        })
+        .filter(p => p.date && !isNaN(p.date.getTime()));
+
+      // Grouper par granularité
+      const granularity = state.ruptureChartPeriod || "all";
+      if (granularity === "all") {
+        points.forEach(p => { p.label = p.date.toLocaleDateString("fr-FR", {day:"2-digit", month:"2-digit", year:"2-digit"}); });
+      } else {
+        const grouped = new Map();
+        points.forEach(p => {
+          let key, label;
+          if (granularity === "year") {
+            key = `${p.date.getFullYear()}`; label = key;
+          } else if (granularity === "week") {
+            const { week, year } = isoWeek(p.date);
+            key = `${year}-W${String(week).padStart(2,'0')}`; label = `S${String(week).padStart(2,'0')} ${year}`;
+          } else {
+            key = `${p.date.getFullYear()}-${String(p.date.getMonth()+1).padStart(2,'0')}`;
+            label = `${FRENCH_MONTHS[p.date.getMonth()].slice(0,3)} ${p.date.getFullYear()}`;
+          }
+          grouped.set(key, { rupture: p.rupture, label, date: p.date });
+        });
+        const grouped_points = [...grouped.entries()].sort((a,b) => a[0].localeCompare(b[0])).map(([,v]) => v);
+        points.splice(0, points.length, ...grouped_points);
+      }
+
+      // Attacher le select période
+      const rcpSelect = document.getElementById("ruptureChartPeriodSelect");
+      if (rcpSelect) rcpSelect.addEventListener("change", () => { state.ruptureChartPeriod = rcpSelect.value; renderRuptureChart(); });
+
+      if (points.length === 0) {
+        container.innerHTML = `<span style="color:var(--muted);font-size:12px">Aucun historique disponible</span>`;
+        return;
+      }
+      if (points.length < 2) {
+        container.innerHTML = `<span style="color:var(--muted);font-size:12px">Au moins 2 imports requis pour afficher la tendance</span>`;
         return;
       }
 
-      // Recréer canvas dans le container courant du DOM
-      container.innerHTML = `<canvas id="ruptureChart" style="height:220px;width:100%"></canvas>`;
-      const canvas = document.getElementById("ruptureChart");
-      if (!canvas) { console.error("[RUPTURE CHART INIT] canvas introuvable après insertion"); return; }
+      // Badge tendance
+      const last = points[points.length - 1].rupture;
+      const prev = points[points.length - 2].rupture;
+      const delta = last - prev;
+      const pct = prev > 0 ? ((delta / prev) * 100).toFixed(1) : null;
+      const trendEl = document.getElementById("ruptureTrend");
+      if (trendEl) {
+        if (delta > 0) trendEl.innerHTML = `<span style="color:var(--red)">▲ ${delta}${pct !== null ? ` (+${pct}%)` : ""}</span>`;
+        else if (delta < 0) trendEl.innerHTML = `<span style="color:var(--green)">▼ ${Math.abs(delta)}${pct !== null ? ` (${pct}%)` : ""}</span>`;
+        else trendEl.innerHTML = `<span style="color:var(--muted)">— Stable</span>`;
+      }
 
       if (state.charts["ruptureChart"]) {
         state.charts["ruptureChart"].destroy();
         delete state.charts["ruptureChart"];
       }
+      container.innerHTML = `<canvas id="ruptureChart"></canvas>`;
+      const canvas = document.getElementById("ruptureChart");
+      if (!canvas) return;
 
-      const labels = histPoints.map(p => p.date.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "2-digit" }));
-      const values = histPoints.map(p => p.rupture);
+      const ctx = canvas.getContext("2d");
+      const grad = ctx.createLinearGradient(0, 0, 0, 220);
+      grad.addColorStop(0, "rgba(198,40,40,0.15)");
+      grad.addColorStop(1, "rgba(198,40,40,0.00)");
+
+      const values = points.map(p => p.rupture);
+      const ptColors = values.map((v, i) => i === 0 ? "#c62828" : v > values[i-1] ? "#c62828" : v < values[i-1] ? "#2e7d32" : "#667385");
 
       state.charts["ruptureChart"] = new Chart(canvas, {
         type: "line",
         data: {
-          labels,
+          labels: points.map(p => p.label || p.date.toLocaleDateString("fr-FR", {day:"2-digit", month:"2-digit", year:"2-digit"})),
           datasets: [{
-            label: "Ruptures",
             data: values,
             borderColor: "#c62828",
-            backgroundColor: "rgba(198,40,40,0.08)",
+            backgroundColor: grad,
             borderWidth: 2,
-            pointRadius: 4,
-            pointBackgroundColor: "#c62828",
-            tension: 0.3,
+            pointRadius: 5,
+            pointBackgroundColor: ptColors,
+            pointBorderColor: "#fff",
+            pointBorderWidth: 1.5,
+            tension: 0.4,
             fill: true
           }]
         },
         options: {
-          responsive: true,
-          maintainAspectRatio: false,
+          responsive: true, maintainAspectRatio: false,
+          animation: { duration: 500, easing: "easeInOutQuart" },
           plugins: {
             legend: { display: false },
+            datalabels: { display: false },
             tooltip: {
+              backgroundColor: "#1a3f5c", titleColor: "#fff", bodyColor: "#b8d8f0",
+              padding: 10, displayColors: false,
               callbacks: {
+                title: items => items[0].label,
                 label(ctx) {
-                  const val = ctx.parsed.y;
-                  const prev = ctx.dataIndex > 0 ? ctx.dataset.data[ctx.dataIndex - 1] : null;
-                  const delta = prev != null ? (val - prev > 0 ? ` ▲${val-prev}` : val - prev < 0 ? ` ▼${Math.abs(val-prev)}` : " —") : "";
-                  return `Ruptures : ${val}${delta}`;
-                }
+                  const i = ctx.dataIndex, val = ctx.parsed.y;
+                  const p = i > 0 ? ctx.dataset.data[i-1] : null;
+                  if (p === null) return `Ruptures : ${val}`;
+                  const d = val - p, pct = p > 0 ? ` (${d >= 0 ? "+" : ""}${((d/p)*100).toFixed(1)}%)` : "";
+                  return `Ruptures : ${val}  ${d > 0 ? "▲" : d < 0 ? "▼" : "—"}${d !== 0 ? Math.abs(d) : ""}${pct}`;
+                },
+                afterLabel: (ctx) => points[ctx.dataIndex]?.label ? `Import : ${points[ctx.dataIndex].label}` : ""
               }
             }
           },
           scales: {
-            x: { ticks: { font: { size: 11 } } },
-            y: { beginAtZero: true, ticks: { precision: 0 } }
+            x: { grid: { color: "rgba(0,0,0,0.04)" }, ticks: { font: { size: 11 }, color: "#667385" } },
+            y: { beginAtZero: true, grid: { color: "rgba(0,0,0,0.04)" }, ticks: { precision: 0, font: { size: 11 }, color: "#667385" } }
           }
         }
       });
+    }
 
-      console.log("%c[RUPTURE CHART RENDERED]", "color:#2e7d32;font-weight:bold", `${labels.length} points affichés`);
+    function renderAnomalyChart() {
+      const container = document.getElementById("anomalyChartContainer");
+      if (!container) return;
+
+      const hist = state.sbKpiHistory;
+      if (hist === null) {
+        container.innerHTML = `<span style="color:var(--muted);font-size:12px">${SB.client ? "Chargement historique…" : "Non connecté à Supabase"}</span>`;
+        return;
+      }
+      const points = [...hist].reverse()
+        .map(r => {
+          const label = r.originalFilename || r.fileName || "";
+          const date = parseDateFromFilename(label) || r.date;
+          return { date, anomalies: r.anomalies ?? 0, label };
+        })
+        .filter(p => p.date && !isNaN(p.date.getTime()));
+
+      const granularity = state.anomalyChartPeriod || "all";
+      if (granularity === "all") {
+        points.forEach(p => { p.label = p.date.toLocaleDateString("fr-FR", {day:"2-digit", month:"2-digit", year:"2-digit"}); });
+      } else {
+        const grouped = new Map();
+        points.forEach(p => {
+          let key, label;
+          if (granularity === "year") {
+            key = `${p.date.getFullYear()}`; label = key;
+          } else if (granularity === "week") {
+            const { week, year } = isoWeek(p.date);
+            key = `${year}-W${String(week).padStart(2,'0')}`; label = `S${String(week).padStart(2,'0')} ${year}`;
+          } else {
+            key = `${p.date.getFullYear()}-${String(p.date.getMonth()+1).padStart(2,'0')}`;
+            label = `${FRENCH_MONTHS[p.date.getMonth()].slice(0,3)} ${p.date.getFullYear()}`;
+          }
+          grouped.set(key, { anomalies: p.anomalies, label, date: p.date });
+        });
+        const grouped_points = [...grouped.entries()].sort((a,b) => a[0].localeCompare(b[0])).map(([,v]) => v);
+        points.splice(0, points.length, ...grouped_points);
+      }
+
+      const acpSelect = document.getElementById("anomalyChartPeriodSelect");
+      if (acpSelect) acpSelect.addEventListener("change", () => { state.anomalyChartPeriod = acpSelect.value; renderAnomalyChart(); });
+
+      if (points.length === 0) {
+        container.innerHTML = `<span style="color:var(--muted);font-size:12px">Aucun historique disponible</span>`;
+        return;
+      }
+      if (points.length < 2) {
+        container.innerHTML = `<span style="color:var(--muted);font-size:12px">Au moins 2 imports requis pour afficher la tendance</span>`;
+        return;
+      }
+
+      const last = points[points.length - 1].anomalies;
+      const prev = points[points.length - 2].anomalies;
+      const delta = last - prev;
+      const pct = prev > 0 ? ((delta / prev) * 100).toFixed(1) : null;
+      const trendEl = document.getElementById("anomalyTrend");
+      if (trendEl) {
+        if (delta > 0) trendEl.innerHTML = `<span style="color:var(--red)">▲ ${delta}${pct !== null ? ` (+${pct}%)` : ""}</span>`;
+        else if (delta < 0) trendEl.innerHTML = `<span style="color:var(--green)">▼ ${Math.abs(delta)}${pct !== null ? ` (${pct}%)` : ""}</span>`;
+        else trendEl.innerHTML = `<span style="color:var(--muted)">— Stable</span>`;
+      }
+
+      if (state.charts["anomalyChart"]) {
+        state.charts["anomalyChart"].destroy();
+        delete state.charts["anomalyChart"];
+      }
+      container.innerHTML = `<canvas id="anomalyChart"></canvas>`;
+      const canvas = document.getElementById("anomalyChart");
+      if (!canvas) return;
+
+      const ctx = canvas.getContext("2d");
+      const grad = ctx.createLinearGradient(0, 0, 0, 180);
+      grad.addColorStop(0, "rgba(230,126,34,0.15)");
+      grad.addColorStop(1, "rgba(230,126,34,0.00)");
+
+      const values = points.map(p => p.anomalies);
+      const ptColors = values.map((v, i) => i === 0 ? "#e67e22" : v > values[i-1] ? "#c62828" : v < values[i-1] ? "#2e7d32" : "#667385");
+
+      state.charts["anomalyChart"] = new Chart(canvas, {
+        type: "line",
+        data: {
+          labels: points.map(p => p.label || p.date.toLocaleDateString("fr-FR", {day:"2-digit", month:"2-digit", year:"2-digit"})),
+          datasets: [{
+            data: values,
+            borderColor: "#e67e22",
+            backgroundColor: grad,
+            borderWidth: 2,
+            pointRadius: 5,
+            pointBackgroundColor: ptColors,
+            pointBorderColor: "#fff",
+            pointBorderWidth: 1.5,
+            tension: 0.4,
+            fill: true
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          animation: { duration: 500, easing: "easeInOutQuart" },
+          plugins: {
+            legend: { display: false },
+            datalabels: { display: false },
+            tooltip: {
+              backgroundColor: "#1a3f5c", titleColor: "#fff", bodyColor: "#b8d8f0",
+              padding: 10, displayColors: false,
+              callbacks: {
+                title: items => items[0].label,
+                label(ctx) {
+                  const i = ctx.dataIndex, val = ctx.parsed.y;
+                  const p = i > 0 ? ctx.dataset.data[i-1] : null;
+                  if (p === null) return `Anomalies : ${val}`;
+                  const d = val - p, pct = p > 0 ? ` (${d >= 0 ? "+" : ""}${((d/p)*100).toFixed(1)}%)` : "";
+                  return `Anomalies : ${val}  ${d > 0 ? "▲" : d < 0 ? "▼" : "—"}${d !== 0 ? Math.abs(d) : ""}${pct}`;
+                },
+                afterLabel: (ctx) => points[ctx.dataIndex]?.label ? `Import : ${points[ctx.dataIndex].label}` : ""
+              }
+            }
+          },
+          scales: {
+            x: { grid: { color: "rgba(0,0,0,0.04)" }, ticks: { font: { size: 11 }, color: "#667385" } },
+            y: { beginAtZero: true, grid: { color: "rgba(0,0,0,0.04)" }, ticks: { precision: 0, font: { size: 11 }, color: "#667385" } }
+          }
+        }
+      });
     }
 
     function renderHistoryPage() {
@@ -2158,7 +3379,7 @@
         <div class="adv-section-title">Historique des imports ${isCloud ? `<span style="font-size:11px;color:var(--green);font-weight:600;margin-left:8px">● Supabase — partagé entre machines</span>` : `<span style="font-size:11px;color:var(--muted);font-weight:400;margin-left:8px">(session locale)</span>`}</div>
         <div class="adv-card">
           <table class="adv-table">
-            <thead><tr><th>Date</th><th>Fichier</th><th>Stock Kube</th><th>Standby</th><th>Entrées</th><th>HS</th><th>Alertes crit.</th>${isCloud ? "<th>Taux dispo</th><th>Actions</th>" : ""}</tr></thead>
+            <thead><tr><th>Date</th><th>Fichier</th><th>Stock Kube</th><th>Standby</th><th>Livraisons sortantes</th><th>HS Kube Design</th><th>Alertes crit.</th>${isCloud ? "<th>Actions</th>" : ""}</tr></thead>
             <tbody>${rows.map(r => {
               const dateStr = r.date ? (r.date instanceof Date ? r.date.toLocaleDateString("fr-FR") : new Date(r.date).toLocaleDateString("fr-FR")) : "—";
               const hasFile = isCloud && r.fileUrl;
@@ -2186,8 +3407,7 @@
                 <td>${r.livraisons ?? "—"}</td>
                 <td>${r.hs ?? "—"}</td>
                 <td style="color:${(r.critical ?? 0) > 0 ? "var(--red)" : "inherit"}">${r.critical ?? "—"}</td>
-                ${isCloud ? `<td>${r.tauxDispo != null ? r.tauxDispo + "%" : "—"}</td>` : ""}
-                ${actionsCell}
+                                ${actionsCell}
               </tr>`;
             }).join("")}</tbody>
           </table>
@@ -2380,8 +3600,8 @@
         const data = event.target.result;
         const workbook = XLSX.read(data, { type: "array", cellDates: false });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(sheet, { defval: null, raw: true })
-          .filter(r => Object.values(r).some(v => v !== null && v !== "" && v !== undefined));
+        const rows = normalizeHeaders(XLSX.utils.sheet_to_json(sheet, { defval: null, raw: true })
+          .filter(r => Object.values(r).some(v => v !== null && v !== "" && v !== undefined)));
         loadRows(rows, file.name);
         // [PERSISTENCE: IndexedDB — stockage local offline-first]
         await saveImport(rows, file.name);
@@ -2417,7 +3637,7 @@
       reader.readAsArrayBuffer(file);
     }
 
-    function exportSamsungReporting() {
+    function exportSamsungReporting(withDetail = true) {
       const TCD_STATUTS = ["CDM IDF", "CDM PROVINCE", "HS", "LIVRAISON", "MAGASIN", "PROJET", "STANDBY", "STOCK KUBE", "VOL"];
       const BDD_COLS = ["GAMME", "PRODUIT", "TYPE", "COLORIS", "MARKETING_NAME", "SKU", "IMEI", "SN", "STATUT", "EMPLACEMENT", "EXPEDITEUR", "LIVRAISON", "ENSEIGNE", "MAGASIN", "PLANNING", "MOBILIER", "COMMENTAIRE"];
       // Style indices matching xl/styles.xml cellXfs order
@@ -2433,7 +3653,7 @@
         { v: "STOCK KUBE = Stock dispo à date", s: S_B },
         null, null,
         { v: "Entre 0 < 5", s: S_CB },
-        { v: "Entre 5 à 15", s: S_LB }
+        { v: "Entre 5 < 10", s: S_LB }
       ];
 
       const pad = (v) => String(v).padStart(2, "0");
@@ -2493,8 +3713,8 @@
           const cnt = pivot[name][s];
           const sn = cellSheetMap[`${name}||${s}`];
           let st = S_N;
-          if (s === "STOCK KUBE") st = (!cnt || cnt <= 4) ? S_C : cnt <= 15 ? S_L : S_N;
-          if (sn && cnt) {
+          if (s === "STOCK KUBE") st = (!cnt || cnt <= 4) ? S_C : cnt <= 10 ? S_L : S_N;
+          if (withDetail && sn && cnt) {
             row.push(mk(cnt, st, false, `HYPERLINK("#'${sn}'!A1",${cnt})`));
           } else {
             row.push(mk(cnt ?? null, st, true));
@@ -2510,7 +3730,7 @@
       const xlsxData = xlsxBuild(
         [{ name: "TCD", rows: tcdRows },
          { name: "BDD", rows: [BDD_COLS, ...state.rows.map(toRow)], hdr: S_H },
-         ...miniSheets]
+         ...(withDetail ? miniSheets : [])]
       );
       download(new Blob([xlsxData], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), `STOCK KUBE ${dateStampFR(new Date())}.xlsx`);
     }
@@ -2746,7 +3966,8 @@
 
     document.getElementById("browseBtn").addEventListener("click", () => document.getElementById("fileInput").click());
     document.getElementById("newImportBtn").addEventListener("click", () => document.getElementById("fileInput").click());
-    document.getElementById("reportingBtn").addEventListener("click", exportSamsungReporting);
+    document.getElementById("reportingBtn").addEventListener("click", () => exportSamsungReporting(true));
+    document.getElementById("reportingBtnSimple").addEventListener("click", () => exportSamsungReporting(false));
     document.getElementById("fileInput").addEventListener("change", (event) => {
       if (event.target.files[0]) handleFile(event.target.files[0]);
       event.target.value = "";
@@ -2768,7 +3989,7 @@
       if (event.dataTransfer.files[0]) handleFile(event.dataTransfer.files[0]);
     });
 
-    document.getElementById("histBtn").addEventListener("click", openHistModal);
+
     document.getElementById("histClose").addEventListener("click", closeHistModal);
     document.getElementById("histBackdrop").addEventListener("click", (e) => {
       if (e.target.id === "histBackdrop") closeHistModal();
@@ -2883,6 +4104,7 @@
             updateSyncIndicator("synced");
           }
           if (this._readyResolve) { this._readyResolve(true); this._readyResolve = null; }
+          this._subscribeSettings();
           resolve(true);
         } catch(e) {
           console.error("[SB] Erreur createClient:", e.message);
@@ -2892,7 +4114,52 @@
         }
       },
 
+      _subscribeSettings() {
+        if (!this.client || this._settingsChannel) return;
+        this._settingsChannel = this.client.channel("settings-broadcast", { config: { broadcast: { self: false } } })
+          .on("broadcast", { event: "import_updated" }, async () => {
+            await autoLoadLastImport();
+            showToast("📥 Nouvel import chargé");
+          })
+          .on("broadcast", { event: "rupture_updated" }, async () => {
+            const data = await SB.fetchRuptureSettings();
+            if (data) state.ruptureExclusions = new Set(data.filter(r => !r.is_active).map(r => r.product_reference));
+            invalidateCaches(); renderKpis();
+            if (state.currentTab === "ruptureSettings") renderAdvancedPage("ruptureSettings");
+            showToast("🔄 Paramètres ruptures modifiés");
+          })
+          .on("broadcast", { event: "hsl_updated" }, async () => {
+            const data = await SB.fetchHsLivraisonSettings();
+            if (data) state.hsLivraisonExclusions.dates = new Set(data.filter(r => r.setting_type==="date" && !r.is_active).map(r => r.value));
+            invalidateCaches(); renderKpis();
+            if (state.currentTab === "hsLivraisonSettings") renderAdvancedPage("hsLivraisonSettings");
+            showToast("🔄 Paramètres HS Livraison modifiés");
+          })
+          .on("broadcast", { event: "delivery_updated" }, async () => {
+            const data = await SB.fetchDeliverySettings();
+            if (data) {
+              state.deliveryExclusions = { dates: new Set(), shippers: new Set(), stores: new Set(), gammes: new Set() };
+              data.filter(r => !r.is_active).forEach(r => {
+                if (r.setting_type === "date") state.deliveryExclusions.dates.add(r.value);
+                else if (r.setting_type === "shipper") state.deliveryExclusions.shippers.add(r.value);
+                else if (r.setting_type === "store") state.deliveryExclusions.stores.add(r.value);
+                else if (r.setting_type === "gamme") state.deliveryExclusions.gammes.add(r.value);
+              });
+            }
+            invalidateCaches(); renderKpis();
+            if (state.currentTab === "deliverySettings") renderAdvancedPage("deliverySettings");
+            showToast("🔄 Paramètres livraisons modifiés");
+          })
+          .subscribe();
+      },
+
+      async broadcastSettingsUpdate(event) {
+        if (!this._settingsChannel) return;
+        await this._settingsChannel.send({ type: "broadcast", event, payload: {} });
+      },
+
       disconnect() {
+        if (this._settingsChannel) { this.client?.removeChannel(this._settingsChannel); this._settingsChannel = null; }
         this.client = null; this.cfg = null;
         localStorage.removeItem("sb_config");
         _apiCache.invalidateAll();
@@ -2934,12 +4201,12 @@
             this.client.from("kpi_snapshots").insert({
               import_id:      importId,
               stock_physique: metrics.physical ?? 0,
-              stock_kube:     metrics.available ?? 0,
+              stock_kube:     metrics.owned ?? 0,
               standby:        metrics.standby ?? 0,
               livraisons:     metrics.incoming ?? 0,
               sorties,
               projet:         metrics.project ?? 0,
-              hs:             metrics.hs ?? 0,
+              hs:             metrics.hsKube ?? 0,
               alert_low:      metrics.low ?? 0,
               alert_critical: metrics.critical ?? 0,
               alert_rupture:  metrics.rupture ?? 0,
@@ -2952,6 +4219,7 @@
 
           _apiCache.invalidate("imports"); _apiCache.invalidate("kpis");
           sbLog(`✅ Import "${fileName}" synchronisé (${dataset.length} lignes)`);
+          await this.broadcastSettingsUpdate("import_updated");
           return importId;
         } catch(e) {
           console.error("[SB] saveImport exception:", e.message);
@@ -3055,7 +4323,7 @@
         try {
           const { data, error } = await this.client
             .from("kpi_snapshots")
-            .select("snapshot_at,stock_kube,standby,livraisons,hs,alert_critical,alert_low,alert_rupture,taux_dispo,imports!inner(id,file_name,file_url,file_path,original_filename,is_last_opened)")
+            .select("snapshot_at,stock_kube,standby,livraisons,hs,alert_critical,alert_low,alert_rupture,anomalies,taux_dispo,imports!inner(id,file_name,file_url,file_path,original_filename,is_last_opened)")
             .order("snapshot_at", { ascending: false })
             .limit(30);
           if (error) { console.error("[SB] fetchHistory:", error.message); return null; }
@@ -3070,7 +4338,8 @@
             stockKube:  r.stock_kube,  standby:   r.standby,
             livraisons: r.livraisons,  hs:        r.hs,
             critical:   r.alert_critical, low:    r.alert_low,
-            rupture:    r.alert_rupture,  tauxDispo: r.taux_dispo
+            rupture:    r.alert_rupture,  tauxDispo: r.taux_dispo,
+            anomalies:  r.anomalies
           }));
           _apiCache.set("history", mapped);
           return mapped;
@@ -3104,6 +4373,73 @@
       // ---------------------------------------------------------------
       // Marquer le dernier import ouvert (multi-PC)
       // ---------------------------------------------------------------
+      async fetchDeliverySettings() {
+        if (!this.client) return null;
+        try {
+          const { data, error } = await this.client.from("delivery_settings").select("setting_type,value,is_active");
+          if (error) { console.error("[SB] fetchDeliverySettings:", error.message); return null; }
+          return data;
+        } catch(e) { return null; }
+      },
+
+      async saveDeliverySettings(settings) {
+        if (!this.client || !settings.length) return false;
+        try {
+          const { error } = await this.client.from("delivery_settings")
+            .upsert(settings.map(s => ({ setting_type: s.setting_type, value: s.value, is_active: s.is_active, updated_at: new Date().toISOString() })), { onConflict: "setting_type,value" });
+          if (error) { console.error("[SB] saveDeliverySettings:", error.message); return false; }
+          await this.broadcastSettingsUpdate("delivery_updated");
+          return true;
+        } catch(e) { return false; }
+      },
+
+      async fetchRuptureSettings() {
+        if (!this.client) return null;
+        try {
+          const { data, error } = await this.client.from("rupture_settings").select("product_reference,is_active");
+          if (error) { console.error("[SB] fetchRuptureSettings:", error.message); return null; }
+          return data;
+        } catch(e) { console.error("[SB] fetchRuptureSettings:", e.message); return null; }
+      },
+
+      async saveRuptureSettings(settings) {
+        if (!this.client || !settings.length) return false;
+        try {
+          const payload = settings.map(s => ({ product_reference: s.product_reference, is_active: s.is_active, updated_at: new Date().toISOString() }));
+          const { error } = await this.client.from("rupture_settings").upsert(payload, { onConflict: "product_reference" });
+          if (error) { console.error("[SB] saveRuptureSettings:", error.message); return false; }
+          await this.broadcastSettingsUpdate("rupture_updated");
+          return true;
+        } catch(e) { console.error("[SB] saveRuptureSettings:", e.message); return false; }
+      },
+
+      async fetchHsLivraisonSettings() {
+        if (!this.client) return null;
+        try {
+          const { data, error } = await this.client.from("hs_livraison_settings").select("setting_type,value,is_active");
+          if (error) { console.error("[SB] fetchHsLivraisonSettings:", error.message); return null; }
+          return data;
+        } catch(e) { console.error("[SB] fetchHsLivraisonSettings:", e.message); return null; }
+      },
+      async saveHsLivraisonSettings(settings) {
+        if (!this.client || !settings.length) return true;
+        try {
+          const payload = settings.map(s => ({ setting_type: s.setting_type, value: s.value, is_active: s.is_active, updated_at: new Date().toISOString() }));
+          const { error } = await this.client.from("hs_livraison_settings").upsert(payload, { onConflict: "setting_type,value" });
+          if (error) { console.error("[SB] saveHsLivraisonSettings:", error.message); return false; }
+          await this.broadcastSettingsUpdate("hsl_updated");
+          return true;
+        } catch(e) { console.error("[SB] saveHsLivraisonSettings:", e.message); return false; }
+      },
+
+      async patchSnapshotHs(importId, hsKube) {
+        if (!this.client || !importId) return;
+        try {
+          await this.client.from("kpi_snapshots").update({ hs: hsKube }).eq("import_id", importId);
+          _apiCache.invalidate("history");
+        } catch(e) { console.error("[SB] patchSnapshotHs:", e.message); }
+      },
+
       async setLastOpened(importId) {
         if (!this.client || !importId) return;
         try {
@@ -3166,6 +4502,38 @@
       // MIGRATION : IndexedDB → Supabase
       // Évite les doublons en vérifiant file_name + row_count
       // ---------------------------------------------------------------
+      async fixStockKubeMetrics(onProgress) {
+        if (!this.client) return { ok: 0, fail: 0 };
+        const { data: imports } = await this.client.from("imports").select("id,file_path,file_name,original_filename");
+        if (!imports?.length) return { ok: 0, fail: 0 };
+        let ok = 0, fail = 0;
+        for (const imp of imports) {
+          try {
+            let fetchUrl = null;
+            if (imp.file_path) {
+              const { data: u } = await this.client.storage.from("imports-files").createSignedUrl(imp.file_path, 3600);
+              if (u?.signedUrl) fetchUrl = u.signedUrl;
+            }
+            if (!fetchUrl) { fail++; if (onProgress) onProgress(ok+fail, imports.length); continue; }
+            const resp = await fetch(fetchUrl);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const ab = await resp.arrayBuffer();
+            const wb = XLSX.read(ab, { type: "array", cellDates: false });
+            const sheet = wb.Sheets[wb.SheetNames[0]];
+            const rawRows = normalizeHeaders(XLSX.utils.sheet_to_json(sheet, { defval: null, raw: true }).filter(r => Object.values(r).some(v => v !== null && v !== "" && v !== undefined)));
+            const rows = normalizeRows(rawRows);
+            const owned = rows.filter(isOwnedStock).length;
+            const { error } = await this.client.from("kpi_snapshots").update({ stock_kube: owned }).eq("import_id", imp.id);
+            if (error) throw new Error(error.message);
+            ok++;
+          } catch(e) { console.error("[SB] fixStockKube:", imp.file_name, e.message); fail++; }
+          if (onProgress) onProgress(ok+fail, imports.length);
+        }
+        _apiCache.invalidateAll();
+        state.sbKpiHistory = null;
+        return { ok, fail };
+      },
+
       async syncHistory(onProgress) {
         if (!this.client) return { ok: 0, fail: 0 };
         const localEntries = await listImports();
@@ -3217,7 +4585,7 @@
         critical: skuRows.filter(r => r.alert==="critical").length,
         rupture:  skuRows.filter(r => r.alert==="rupture").length,
         project:  rows.filter(r => r.STATUT==="PROJET" && r.EMPLACEMENT==="KUBE DESIGN").length,
-        hs:       rows.filter(r => r.STATUT==="HS").length,
+        hs:       rows.filter(r => r.STATUT==="HS" && r.EMPLACEMENT==="KUBE DESIGN").length,
         incoming: rows.filter(r => r.STATUT==="LIVRAISON" && r.EXPEDITEUR!=="KUBE DESIGN").length,
         anomalies: anomalies.length
       };
@@ -3227,117 +4595,97 @@
     // AUTO RESTORE — Restaurer automatiquement le dernier import au démarrage
     // Toujours prioritaire sur IndexedDB pour la sync multi-PC
     // -------------------------------------------------------------------
+    function showLoadingOverlay() { const el = document.getElementById("loadingOverlay"); if (el) el.classList.add("show"); }
+    function hideLoadingOverlay() { const el = document.getElementById("loadingOverlay"); if (el) el.classList.remove("show"); }
+
+    async function _downloadAndParseImport(imp) {
+      const { data: urlData, error: urlErr } = await SB.client.storage
+        .from("imports-files").createSignedUrl(imp.file_path, 3600);
+      if (urlErr) console.warn("[DOWNLOAD] createSignedUrl error:", urlErr.message);
+      const fetchUrl = urlData?.signedUrl || imp.file_url;
+      if (!fetchUrl) throw new Error(`URL introuvable — file_path: ${imp.file_path}`);
+      const resp = await fetch(fetchUrl);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const arrayBuffer = await resp.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: "array", cellDates: false });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = normalizeHeaders(XLSX.utils.sheet_to_json(sheet, { defval: null, raw: true })
+        .filter(r => Object.values(r).some(v => v !== null && v !== "" && v !== undefined)));
+      if (_db) idbPut("sb_cache", { key: "last", supabaseImportId: imp.id, fileName: imp.original_filename || imp.file_name, importedAt: imp.imported_at, dataset: rows }).catch(() => {});
+      return rows;
+    }
+
     async function autoLoadLastImport() {
-      if (!SB.client) {
-        console.warn("[AUTO RESTORE START] Annulé — client Supabase non initialisé");
-        return;
-      }
-      console.log("%c[AUTO RESTORE START]", "color:#1565c0;font-weight:bold",
-        "Recherche du dernier import dans Supabase Storage…");
+      if (!SB.client) return;
+      showLoadingOverlay();
       updateSyncIndicator("uploading");
 
       try {
-        // 1. Import marqué is_last_opened = true
-        let imp = null;
-        try {
-          const { data, error } = await SB.client.from("imports")
-            .select("id,file_name,original_filename,file_url,file_path,imported_at")
-            .eq("is_last_opened", true)
-            .order("last_opened_at", { ascending: false })
-            .limit(1).maybeSingle();
-          if (error) console.warn("[AUTO RESTORE START] fetchLastOpened error:", error.message);
-          else if (data?.file_path) { imp = data; console.log("[AUTO RESTORE START] is_last_opened trouvé:", data.file_name); }
-          else console.log("[AUTO RESTORE START] is_last_opened: aucun résultat avec file_path");
-        } catch(e) { console.warn("[AUTO RESTORE START] fetchLastOpened exception:", e.message); }
+        // 1. Lire le cache IDB immédiatement (très rapide)
+        const cachedEntry = _db ? await idbGet("sb_cache", "last").catch(() => null) : null;
 
-        // 2. Fallback : import le plus récent avec file_path
-        if (!imp) {
-          const { data: d2, error: e2 } = await SB.client.from("imports")
+        // 2. Si cache dispo → afficher immédiatement, vérifier Supabase en arrière-plan
+        if (cachedEntry?.dataset?.length > 0) {
+          const cachedName = cachedEntry.fileName || "export";
+          loadRows(cachedEntry.dataset, cachedName, { importedAt: cachedEntry.importedAt, keepTab: false });
+          hideLoadingOverlay();
+          updateSyncIndicator("synced");
+
+          // Vérification Supabase en arrière-plan
+          SB.client.from("imports")
             .select("id,file_name,original_filename,file_url,file_path,imported_at")
             .not("file_path", "is", null)
+            .order("last_opened_at", { ascending: false, nullsFirst: false })
             .order("imported_at", { ascending: false })
-            .limit(1).maybeSingle();
-          if (e2) console.warn("[AUTO RESTORE START] fallback query error:", e2.message);
-          else if (d2?.file_path) { imp = d2; console.log("[AUTO RESTORE START] Fallback trouvé:", d2.file_name); }
-          else console.log("[AUTO RESTORE START] Fallback: aucun import avec file_path dans Supabase");
-        }
-
-        if (!imp) {
-          console.warn("[AUTO RESTORE START] ⚠ Aucun fichier dans Supabase Storage — UI vidée (Supabase est source de vérité)");
-          // Supabase n'a rien → vider l'UI pour ne pas afficher des données IndexedDB périmées
-          state.rawRows = []; state.rows = []; state.skuRows = []; state.anomalies = [];
-          document.getElementById("fileMeta").textContent = "Aucune donnée dans Supabase — importez un fichier SODA";
-          renderAll();
-          sbLog("Aucun fichier archivé — importez un fichier SODA");
-          updateSyncIndicator("offline");
+            .limit(1).maybeSingle()
+            .then(async ({ data: imp, error }) => {
+              if (error || !imp?.file_path) return;
+              SB.setLastOpened(imp.id).catch(() => {});
+              if (imp.id === cachedEntry.supabaseImportId) {
+                // Même import — patcher hs + anomalies avec les valeurs correctes
+                const m = computeMetrics();
+                SB.client.from("kpi_snapshots").update({ hs: m.hsKube ?? 0, anomalies: state.anomalies?.length ?? 0 }).eq("import_id", imp.id).then(() => { _apiCache.invalidate("history"); }).catch(() => {});
+                return;
+              }
+              // Nouvel import disponible → télécharger et mettre à jour silencieusement
+              try {
+                const rows = await _downloadAndParseImport(imp);
+                loadRows(rows, imp.original_filename || imp.file_name, { importedAt: imp.imported_at, keepTab: true });
+                showToast("📥 Données mises à jour");
+                updateSyncIndicator("synced");
+              } catch(e) { console.warn("[BG UPDATE] erreur:", e.message); }
+            });
           return;
         }
 
-        const displayName = imp.original_filename || imp.file_name;
-        console.log("%c[LAST IMPORT FOUND]", "color:#0b5cab;font-weight:bold",
-          displayName, "| id:", imp.id, "| path:", imp.file_path);
+        // 3. Pas de cache → requête Supabase + téléchargement
+        const { data: imp, error } = await SB.client.from("imports")
+          .select("id,file_name,original_filename,file_url,file_path,imported_at")
+          .not("file_path", "is", null)
+          .order("last_opened_at", { ascending: false, nullsFirst: false })
+          .order("imported_at", { ascending: false })
+          .limit(1).maybeSingle();
 
-        // 3. Cache IndexedDB — évite le re-téléchargement si même import
-        let rows = null;
-        if (_db) {
-          try {
-            const cached = await idbGet("sb_cache", "last");
-            if (cached?.supabaseImportId === imp.id && cached?.dataset?.length > 0) {
-              rows = cached.dataset;
-              console.log("%c[FILE DOWNLOADED]", "color:#2e7d32;font-weight:bold",
-                `Cache IndexedDB — ${rows.length} lignes (pas de téléchargement)`);
-              sbLog(`Chargé depuis le cache : ${displayName} (${rows.length} lignes)`);
-            }
-          } catch(e) { /* cache miss — on télécharge */ }
+        if (error) console.warn("[AUTO RESTORE] query error:", error.message);
+
+        if (!imp?.file_path) {
+          state.rawRows = []; state.rows = []; state.skuRows = []; state.anomalies = [];
+          document.getElementById("fileMeta").textContent = "Aucune donnée dans Supabase — importez un fichier SODA";
+          renderAll(); updateSyncIndicator("offline"); hideLoadingOverlay(); return;
         }
 
-        // 4. Téléchargement depuis Storage si pas en cache
-        if (!rows) {
-          sbLog(`Téléchargement : ${displayName}…`);
-          const { data: urlData, error: urlErr } = await SB.client.storage
-            .from("imports-files").createSignedUrl(imp.file_path, 3600);
-          if (urlErr) console.warn("[AUTO RESTORE START] createSignedUrl error:", urlErr.message);
-          const fetchUrl = urlData?.signedUrl || imp.file_url;
-          if (!fetchUrl) throw new Error(`URL introuvable — file_path: ${imp.file_path}`);
-
-          const resp = await fetch(fetchUrl);
-          if (!resp.ok) throw new Error(`HTTP ${resp.status} — fichier manquant dans Storage`);
-          const arrayBuffer = await resp.arrayBuffer();
-          console.log("%c[FILE DOWNLOADED]", "color:#0b5cab;font-weight:bold",
-            displayName, `(${(arrayBuffer.byteLength / 1024).toFixed(0)} Ko)`);
-
-          // 5. Parser Excel
-          const workbook = XLSX.read(arrayBuffer, { type: "array", cellDates: false });
-          const sheet = workbook.Sheets[workbook.SheetNames[0]];
-          rows = XLSX.utils.sheet_to_json(sheet, { defval: null, raw: true })
-            .filter(r => Object.values(r).some(v => v !== null && v !== "" && v !== undefined));
-          console.log("%c[EXCEL PARSED]", "color:#6a1b9a;font-weight:bold", `${rows.length} lignes`);
-
-          // Mettre en cache pour les prochains F5
-          if (_db) idbPut("sb_cache", {
-            key: "last", supabaseImportId: imp.id,
-            fileName: displayName, importedAt: imp.imported_at, dataset: rows
-          }).catch(() => {});
-        }
-
-        // 6. Reconstruire toute l'UI
-        loadRows(rows, displayName, { importedAt: imp.imported_at });
-        console.log("%c[STATE RESTORED]", "color:#2e7d32;font-weight:bold",
-          `rows=${state.rows.length}  skuRows=${state.skuRows.length}  anomalies=${state.anomalies.length}`);
-        console.log("%c[DASHBOARD RENDERED]", "color:#2e7d32;font-weight:bold", state.currentTab);
-
-        // 7. Marquer comme dernier ouvert (non bloquant)
+        const rows = await _downloadAndParseImport(imp);
+        loadRows(rows, imp.original_filename || imp.file_name, { importedAt: imp.imported_at });
         SB.setLastOpened(imp.id).catch(() => {});
-        _apiCache.invalidate("history");
-        state.sbKpiHistory = null;
-
-        sbLog(`✅ ${displayName} (${rows.length} lignes)`);
+        sbLog(`✅ ${imp.original_filename || imp.file_name} (${rows.length} lignes)`);
         updateSyncIndicator("synced");
+        hideLoadingOverlay();
 
       } catch(e) {
-        console.error("%c[AUTO RESTORE START] ❌ ERREUR", "color:red;font-weight:bold", e.message);
+        console.error("[AUTO RESTORE] ❌", e.message);
         sbLog(`❌ Auto-restore échoué : ${e.message}`);
         updateSyncIndicator("error");
+        hideLoadingOverlay();
       }
     }
 
@@ -3370,8 +4718,8 @@
         const arrayBuffer = await resp.arrayBuffer();
         const workbook = XLSX.read(arrayBuffer, { type: "array", cellDates: false });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(sheet, { defval: null, raw: true })
-          .filter(r => Object.values(r).some(v => v !== null && v !== "" && v !== undefined));
+        const rows = normalizeHeaders(XLSX.utils.sheet_to_json(sheet, { defval: null, raw: true })
+          .filter(r => Object.values(r).some(v => v !== null && v !== "" && v !== undefined)));
         loadRows(rows, fileName);
         console.log("%c[FILE RESTORED]", "color:#2e7d32;font-weight:bold", fileName, `(${rows.length} lignes)`);
         sbLog(`✅ Restauré : ${fileName} (${rows.length} lignes)`);
@@ -3521,12 +4869,16 @@
         }
       });
 
+
       // Connexion automatique au démarrage
       if (SB.load()) {
         console.log("[SB] Auto-connexion au démarrage…");
         SB.connect(SB.cfg.url, SB.cfg.key).then(async ok => {
           if (!ok) {
             console.warn("[SB] Auto-connexion échouée — fallback IndexedDB");
+            try { const saved = localStorage.getItem("rupture_exclusions"); if (saved) state.ruptureExclusions = new Set(JSON.parse(saved)); } catch(e) {}
+            try { const s = localStorage.getItem("delivery_exclusions"); if (s) { const p = JSON.parse(s); (p.dates||[]).forEach(v=>state.deliveryExclusions.dates.add(v)); (p.shippers||[]).forEach(v=>state.deliveryExclusions.shippers.add(v)); (p.stores||[]).forEach(v=>state.deliveryExclusions.stores.add(v)); (p.gammes||[]).forEach(v=>state.deliveryExclusions.gammes.add(v)); } } catch(e) {}
+            try { const saved = localStorage.getItem("hsl_date_exclusions"); if (saved) state.hsLivraisonExclusions.dates = new Set(JSON.parse(saved)); } catch(e) {}
             const loaded = await loadLatestImport();
             if (!loaded) {
               document.getElementById("fileMeta").textContent = "Aucune donnée — importez un fichier";
@@ -3540,7 +4892,40 @@
             state.sbKpiHistory = rows || [];
             console.log(`[SB] Historique chargé: ${(rows||[]).length} entrées`);
             if (state.currentTab === "history") renderAdvancedPage("history");
-            // initRuptureChart fait sa propre requête — pas besoin de re-render ici
+            else if (state.currentTab === "dashboard") { renderRuptureChart(); renderAnomalyChart(); }
+          });
+          // Charger les paramètres livraisons
+          SB.fetchDeliverySettings().then(data => {
+            if (data) {
+              data.filter(r => !r.is_active).forEach(r => {
+                if (r.setting_type === "date") state.deliveryExclusions.dates.add(r.value);
+                else if (r.setting_type === "shipper") state.deliveryExclusions.shippers.add(r.value);
+                else if (r.setting_type === "store") state.deliveryExclusions.stores.add(r.value);
+                else if (r.setting_type === "gamme") state.deliveryExclusions.gammes.add(r.value);
+              });
+            } else {
+              try { const s = localStorage.getItem("delivery_exclusions"); if (s) { const p = JSON.parse(s); (p.dates||[]).forEach(v=>state.deliveryExclusions.dates.add(v)); (p.shippers||[]).forEach(v=>state.deliveryExclusions.shippers.add(v)); (p.stores||[]).forEach(v=>state.deliveryExclusions.stores.add(v)); (p.gammes||[]).forEach(v=>state.deliveryExclusions.gammes.add(v)); } } catch(e) {}
+            }
+            invalidateCaches(); renderKpis();
+          });
+          // Charger les paramètres ruptures
+          SB.fetchRuptureSettings().then(data => {
+            if (data) {
+              state.ruptureExclusions = new Set(data.filter(r => !r.is_active).map(r => r.product_reference));
+            } else {
+              // Fallback localStorage
+              try { const saved = localStorage.getItem("rupture_exclusions"); if (saved) state.ruptureExclusions = new Set(JSON.parse(saved)); } catch(e) {}
+            }
+            invalidateCaches(); renderKpis();
+          });
+          // Charger les paramètres HS Livraison
+          SB.fetchHsLivraisonSettings().then(data => {
+            if (data) {
+              state.hsLivraisonExclusions.dates = new Set(data.filter(r => r.setting_type==="date" && !r.is_active).map(r => r.value));
+            } else {
+              try { const saved = localStorage.getItem("hsl_date_exclusions"); if (saved) state.hsLivraisonExclusions.dates = new Set(JSON.parse(saved)); } catch(e) {}
+            }
+            invalidateCaches(); renderKpis();
           });
           // Auto-restore dernier import — toujours, pour sync multi-PC
           autoLoadLastImport();
@@ -3548,6 +4933,7 @@
       } else {
         console.log("[SB] Pas de config Supabase — mode local");
         if (this._readyResolve) { this._readyResolve(false); }
+        hideLoadingOverlay();
       }
     })();
   </script>
