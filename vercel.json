@@ -1,3 +1,5 @@
 {
-  "alias": ["service-produit-stock.vercel.app"]
+  "alias": ["service-produit-stock.vercel.app"],
+  "buildCommand": "node -e \"require('fs').writeFileSync('version.json', JSON.stringify({v: Date.now()}))\"",
+  "outputDirectory": "."
 }

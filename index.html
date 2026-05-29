@@ -4939,14 +4939,13 @@
   </script>
   <script>
     (function () {
-      let knownEtag = null;
+      let knownVersion = null;
       async function checkVersion() {
         try {
-          const res = await fetch(location.href, { method: "HEAD", cache: "no-cache" });
-          const etag = res.headers.get("etag") || res.headers.get("last-modified");
-          if (!etag) return;
-          if (knownEtag === null) { knownEtag = etag; return; }
-          if (etag !== knownEtag) location.reload();
+          const res = await fetch("/version.json?t=" + Date.now(), { cache: "no-store" });
+          const data = await res.json();
+          if (knownVersion === null) { knownVersion = data.v; return; }
+          if (data.v !== knownVersion) location.reload();
         } catch {}
       }
       checkVersion();
