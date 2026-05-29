@@ -1270,7 +1270,7 @@
         if (item.STATUT === "STANDBY" && item.EMPLACEMENT !== "KUBE DESIGN") anomalies.push(anomaly("Standby hors Kube Design", item, "STATUT = STANDBY mais EMPLACEMENT différent de KUBE DESIGN"));
         if (item.STATUT === "HS" && item.EMPLACEMENT !== "KUBE DESIGN" && item.EMPLACEMENT !== "LIVRAISON") anomalies.push(anomaly("HS hors Kube/Livraison", item, `STATUT = HS mais EMPLACEMENT = ${item.EMPLACEMENT || "vide"}`));
         if (item.STATUT === "PROJET" && item.EMPLACEMENT !== "KUBE DESIGN") anomalies.push(anomaly("Projet hors Kube Design", item, `STATUT = PROJET mais EMPLACEMENT = ${item.EMPLACEMENT || "vide"}`));
-        if ((item.TYPE === "RDU" || item.TYPE === "LDU") && item.SKU && item.MARKETING_NAME && !isFactice(item) && nameCanonical.has(item.MARKETING_NAME)) {
+        if ((item.TYPE === "RDU" || item.TYPE === "LDU") && item.SKU && item.MARKETING_NAME && !isFactice(item) && item.STATUT !== "LIVRAISON" && item.EMPLACEMENT !== "LIVRAISON" && nameCanonical.has(item.MARKETING_NAME)) {
           const ref = nameCanonical.get(item.MARKETING_NAME);
           if (item.SKU !== ref.sku) anomalies.push(anomaly("SKU / Marketing incohérent", item, `"${item.MARKETING_NAME}" → SKU attendu "${ref.sku}" (${ref.count} fois), trouvé "${item.SKU}"`));
         }
