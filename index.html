@@ -1270,7 +1270,7 @@
         if (item.STATUT === "STANDBY" && item.EMPLACEMENT !== "KUBE DESIGN") anomalies.push(anomaly("Standby hors Kube Design", item, "Vérifier que le produit soit bien à KUBE"));
         if (item.STATUT === "HS" && item.EMPLACEMENT !== "KUBE DESIGN" && item.EMPLACEMENT !== "LIVRAISON") anomalies.push(anomaly("HS hors Kube/Livraison", item, "Vérifier que le produit soit bien à KUBE"));
         if (item.STATUT === "PROJET" && item.EMPLACEMENT !== "KUBE DESIGN") anomalies.push(anomaly("Projet hors Kube Design", item, "Vérifier que le produit soit bien à KUBE"));
-        if (item.STATUT === "PROJET" && item.PLANNING) anomalies.push(anomaly("Projet avec planning", item, `Vérifier que le produit soit bien à KUBE — PLANNING renseigné : "${item.PLANNING}"`));
+        if (item.STATUT === "PROJET" && item.PLANNING) anomalies.push(anomaly("Projet avec planning", item, `Vérifier si le produit n'est pas en magasin — PLANNING renseigné : "${item.PLANNING}"`));
         if ((item.TYPE === "RDU" || item.TYPE === "LDU") && item.SKU && item.MARKETING_NAME && !isFactice(item) && item.STATUT !== "LIVRAISON" && item.EMPLACEMENT !== "LIVRAISON" && nameCanonical.has(item.MARKETING_NAME)) {
           const ref = nameCanonical.get(item.MARKETING_NAME);
           if (item.SKU !== ref.sku) anomalies.push(anomaly("SKU / Marketing incohérent", item, `Changer le SKU — attendu "${ref.sku}" pour "${item.MARKETING_NAME}"`));
