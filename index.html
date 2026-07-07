@@ -1256,24 +1256,24 @@
         if (bestCount >= 10) nameCanonical.set(name, { sku: bestSku, count: bestCount });
       });
       rows.forEach((item) => {
-        if (item.STATUT === "MAGASIN" && item.EMPLACEMENT !== "MAGASIN") anomalies.push(anomaly("Statut magasin incohérent", item, "STATUT = MAGASIN mais EMPLACEMENT différent de MAGASIN"));
-        if (item.STATUT === "STOCK KUBE" && item.EMPLACEMENT !== "KUBE DESIGN") anomalies.push(anomaly("Stock Kube hors entrepôt", item, "STATUT = STOCK KUBE mais EMPLACEMENT différent de KUBE DESIGN"));
-        if (!item.SKU && !isFactice(item)) anomalies.push(anomaly("SKU vide", item, "La référence constructeur est vide ou nulle"));
-        if (!item.GAMME && !isFactice(item)) anomalies.push(anomaly("GAMME vide", item, "Produit non factice sans gamme renseignée"));
-        if (!item.TYPE && !isFactice(item)) anomalies.push(anomaly("TYPE vide", item, "Produit sans type (RDU/LDU/ACC/FACTICE)"));
-        if (item.STATUT && !KNOWN_STATUSES.has(item.STATUT)) anomalies.push(anomaly("Statut non reconnu", item, item.STATUT));
-        if (item.EMPLACEMENT && !KNOWN_LOCATIONS.has(item.EMPLACEMENT)) anomalies.push(anomaly("Emplacement non reconnu", item, item.EMPLACEMENT));
-        if ((item.TYPE === "RDU" || item.TYPE === "LDU") && !item.IMEI && item.STATUT !== "HS") anomalies.push(anomaly("RDU/LDU sans IMEI", item, "Produit RDU ou LDU sans numéro IMEI"));
-        if (item.TYPE !== "FACTICE" && item.GAMME !== "ACC" && item.STATUT !== "HS" && !item.IMEI && !item.SN) anomalies.push(anomaly("Sans IMEI ni SN", item, "Produit non factice et non ACC sans IMEI ni SN"));
-        if (item.STATUT === "LIVRAISON" && !item.EXPEDITEUR) anomalies.push(anomaly("Livraison sans expéditeur", item, "STATUT = LIVRAISON mais EXPEDITEUR vide"));
-        if ((item.TYPE === "RDU" || item.TYPE === "LDU") && !isFactice(item) && !item.MARKETING_NAME) anomalies.push(anomaly("RDU/LDU sans MARKETING_NAME", item, "Produit RDU ou LDU non factice sans nom commercial"));
-        if (item.STATUT === "STANDBY" && item.EMPLACEMENT !== "KUBE DESIGN") anomalies.push(anomaly("Standby hors Kube Design", item, "STATUT = STANDBY mais EMPLACEMENT différent de KUBE DESIGN"));
-        if (item.STATUT === "HS" && item.EMPLACEMENT !== "KUBE DESIGN" && item.EMPLACEMENT !== "LIVRAISON") anomalies.push(anomaly("HS hors Kube/Livraison", item, `STATUT = HS mais EMPLACEMENT = ${item.EMPLACEMENT || "vide"}`));
-        if (item.STATUT === "PROJET" && item.EMPLACEMENT !== "KUBE DESIGN") anomalies.push(anomaly("Projet hors Kube Design", item, `STATUT = PROJET mais EMPLACEMENT = ${item.EMPLACEMENT || "vide"}`));
-        if (item.STATUT === "PROJET" && item.PLANNING) anomalies.push(anomaly("Projet avec planning", item, `STATUT = PROJET mais PLANNING = "${item.PLANNING}"`));
+        if (item.STATUT === "MAGASIN" && item.EMPLACEMENT !== "MAGASIN") anomalies.push(anomaly("Statut magasin incohérent", item, "Vérifier si le produit est bien en magasin"));
+        if (item.STATUT === "STOCK KUBE" && item.EMPLACEMENT !== "KUBE DESIGN") anomalies.push(anomaly("Stock Kube hors entrepôt", item, "Vérifier si le produit est bien à KUBE"));
+        if (!item.SKU && !isFactice(item)) anomalies.push(anomaly("SKU vide", item, "Ajouter un SKU"));
+        if (!item.GAMME && !isFactice(item)) anomalies.push(anomaly("GAMME vide", item, "Ajouter une GAMME"));
+        if (!item.TYPE && !isFactice(item)) anomalies.push(anomaly("TYPE vide", item, "Ajouter un TYPE"));
+        if (item.STATUT && !KNOWN_STATUSES.has(item.STATUT)) anomalies.push(anomaly("Statut non reconnu", item, `STATUT "${item.STATUT}" à corriger — erreur de saisie ?`));
+        if (item.EMPLACEMENT && !KNOWN_LOCATIONS.has(item.EMPLACEMENT)) anomalies.push(anomaly("Emplacement non reconnu", item, `EMPLACEMENT "${item.EMPLACEMENT}" à corriger — erreur de saisie ?`));
+        if ((item.TYPE === "RDU" || item.TYPE === "LDU") && !item.IMEI && item.STATUT !== "HS") anomalies.push(anomaly("RDU/LDU sans IMEI", item, "Ajouter l'IMEI"));
+        if (item.TYPE !== "FACTICE" && item.GAMME !== "ACC" && item.STATUT !== "HS" && !item.IMEI && !item.SN) anomalies.push(anomaly("Sans IMEI ni SN", item, "Ajouter l'IMEI et le SN"));
+        if (item.STATUT === "LIVRAISON" && !item.EXPEDITEUR) anomalies.push(anomaly("Livraison sans expéditeur", item, "Ajouter un expéditeur"));
+        if ((item.TYPE === "RDU" || item.TYPE === "LDU") && !isFactice(item) && !item.MARKETING_NAME) anomalies.push(anomaly("RDU/LDU sans MARKETING_NAME", item, "Ajouter un MARKETING_NAME"));
+        if (item.STATUT === "STANDBY" && item.EMPLACEMENT !== "KUBE DESIGN") anomalies.push(anomaly("Standby hors Kube Design", item, "Vérifier que le produit soit bien à KUBE"));
+        if (item.STATUT === "HS" && item.EMPLACEMENT !== "KUBE DESIGN" && item.EMPLACEMENT !== "LIVRAISON") anomalies.push(anomaly("HS hors Kube/Livraison", item, "Vérifier que le produit soit bien à KUBE"));
+        if (item.STATUT === "PROJET" && item.EMPLACEMENT !== "KUBE DESIGN") anomalies.push(anomaly("Projet hors Kube Design", item, "Vérifier que le produit soit bien à KUBE"));
+        if (item.STATUT === "PROJET" && item.PLANNING) anomalies.push(anomaly("Projet avec planning", item, `Vérifier que le produit soit bien à KUBE — PLANNING renseigné : "${item.PLANNING}"`));
         if ((item.TYPE === "RDU" || item.TYPE === "LDU") && item.SKU && item.MARKETING_NAME && !isFactice(item) && item.STATUT !== "LIVRAISON" && item.EMPLACEMENT !== "LIVRAISON" && nameCanonical.has(item.MARKETING_NAME)) {
           const ref = nameCanonical.get(item.MARKETING_NAME);
-          if (item.SKU !== ref.sku) anomalies.push(anomaly("SKU / Marketing incohérent", item, `"${item.MARKETING_NAME}" → SKU attendu "${ref.sku}" (${ref.count} fois)`));
+          if (item.SKU !== ref.sku) anomalies.push(anomaly("SKU / Marketing incohérent", item, `Changer le SKU — attendu "${ref.sku}" pour "${item.MARKETING_NAME}"`));
         }
       });
       ["IMEI", "SN"].forEach((column) => {
@@ -1286,7 +1286,7 @@
         });
         seen.forEach((items, key) => {
           if (items.length > 1) {
-            items.forEach((item) => anomalies.push(anomaly(`${column} dupliqué`, item, `${column} ${key} apparaît sur ${items.length} lignes actives`)));
+            items.forEach((item) => anomalies.push(anomaly(`${column} dupliqué`, item, `${column} en double sur ${items.length} lignes — supprimer le doublon`)));
           }
         });
       });
@@ -1302,7 +1302,7 @@
         byKey.forEach((items, key) => {
           const statuts = new Set(items.map(i => i.STATUT));
           if (statuts.size > 1) {
-            items.forEach(item => anomalies.push(anomaly("Double statut actif", item, `${column} ${key} présent en ${[...statuts].join(" + ")}`)));
+            items.forEach(item => anomalies.push(anomaly("Double statut actif", item, `Vérifier où se trouve le produit — double statut : ${[...statuts].join(" + ")}`)));
           }
         });
       });
