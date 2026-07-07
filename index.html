@@ -3380,7 +3380,7 @@
         <div class="adv-section-title">Historique des imports ${isCloud ? `<span style="font-size:11px;color:var(--green);font-weight:600;margin-left:8px">● Supabase — partagé entre machines</span>` : `<span style="font-size:11px;color:var(--muted);font-weight:400;margin-left:8px">(session locale)</span>`}</div>
         <div class="adv-card">
           <table class="adv-table">
-            <thead><tr><th>Date</th><th>Fichier</th><th>Stock Kube</th><th>Standby</th><th>Livraisons sortantes</th><th>HS Kube Design</th><th>Alertes crit.</th>${isCloud ? "<th>Actions</th>" : ""}</tr></thead>
+            <thead><tr><th>Date</th><th>Fichier</th><th>Stock Kube</th><th>HS Kube Design</th><th>Anomalies</th>${isCloud ? "<th>Actions</th>" : ""}</tr></thead>
             <tbody>${rows.map(r => {
               const dateStr = r.date ? (r.date instanceof Date ? r.date.toLocaleDateString("fr-FR") : new Date(r.date).toLocaleDateString("fr-FR")) : "—";
               const hasFile = isCloud && r.fileUrl;
@@ -3404,10 +3404,8 @@
                 <td>${dateStr}</td>
                 <td>${escapeHtml(r.fileName || "")}</td>
                 <td><strong>${r.stockKube ?? "—"}</strong></td>
-                <td>${r.standby ?? "—"}</td>
-                <td>${r.livraisons ?? "—"}</td>
                 <td>${r.hs ?? "—"}</td>
-                <td style="color:${(r.critical ?? 0) > 0 ? "var(--red)" : "inherit"}">${r.critical ?? "—"}</td>
+                <td style="color:${(r.anomalies ?? 0) > 0 ? "var(--red)" : "inherit"}">${r.anomalies ?? "—"}</td>
                                 ${actionsCell}
               </tr>`;
             }).join("")}</tbody>
