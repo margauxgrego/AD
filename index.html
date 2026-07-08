@@ -1366,7 +1366,7 @@
         if ((item.TYPE === "RDU" || item.TYPE === "LDU") && !item.IMEI && item.STATUT !== "HS") anomalies.push(anomaly("RDU/LDU sans IMEI", item, "Ajouter l'IMEI"));
         if (item.TYPE !== "FACTICE" && item.GAMME !== "ACC" && item.STATUT !== "HS" && !item.IMEI && !item.SN) anomalies.push(anomaly("Sans IMEI ni SN", item, "Ajouter l'IMEI et le SN"));
         if (item.STATUT === "LIVRAISON" && !item.EXPEDITEUR) anomalies.push(anomaly("Livraison sans expéditeur", item, "Ajouter un expéditeur"));
-        if ((item.TYPE === "RDU" || item.TYPE === "LDU") && !isFactice(item) && !item.MARKETING_NAME) anomalies.push(anomaly("RDU/LDU sans MARKETING_NAME", item, "Ajouter un MARKETING_NAME"));
+        if (!isFactice(item) && !item.MARKETING_NAME) anomalies.push(anomaly("MARKETING_NAME vide", item, "Ajouter un MARKETING_NAME"));
         if (item.STATUT === "STANDBY" && item.EMPLACEMENT !== "KUBE DESIGN") anomalies.push(anomaly("Standby hors Kube Design", item, "Vérifier que le produit soit bien à KUBE"));
         if (item.STATUT === "HS" && item.EMPLACEMENT !== "KUBE DESIGN" && item.EMPLACEMENT !== "LIVRAISON") anomalies.push(anomaly("HS hors Kube/Livraison", item, "Vérifier que le produit soit bien à KUBE"));
         if (item.STATUT === "PROJET" && item.EMPLACEMENT !== "KUBE DESIGN") anomalies.push(anomaly("Projet hors Kube Design", item, "Vérifier que le produit soit bien à KUBE"));
@@ -3483,7 +3483,7 @@
         <div class="adv-section-title">Historique des imports ${isCloud ? `<span style="font-size:11px;color:var(--green);font-weight:600;margin-left:8px">● Supabase — partagé entre machines</span>` : `<span style="font-size:11px;color:var(--muted);font-weight:400;margin-left:8px">(session locale)</span>`}</div>
         <div class="adv-card">
           <table class="adv-table">
-            <thead><tr><th>Date</th><th>Fichier</th><th>Stock Kube</th><th>HS Kube Design</th><th>Anomalies</th>${isCloud ? "<th>Actions</th>" : ""}</tr></thead>
+            <thead><tr><th>Date</th><th>Fichier</th><th>Anomalies</th>${isCloud ? "<th>Actions</th>" : ""}</tr></thead>
             <tbody>${rows.map(r => {
               const dateStr = r.date ? (r.date instanceof Date ? r.date.toLocaleDateString("fr-FR") : new Date(r.date).toLocaleDateString("fr-FR")) : "—";
               const hasFile = isCloud && r.fileUrl;
@@ -3506,8 +3506,6 @@
               return `<tr${isCurrent ? ' style="background:#f0f9f4"' : ""}>
                 <td>${dateStr}</td>
                 <td>${escapeHtml(r.fileName || "")}</td>
-                <td><strong>${r.stockKube ?? "—"}</strong></td>
-                <td>${r.hs ?? "—"}</td>
                 <td style="color:${(r.anomalies ?? 0) > 0 ? "var(--red)" : "inherit"}">${r.anomalies ?? "—"}</td>
                                 ${actionsCell}
               </tr>`;
