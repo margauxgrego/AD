@@ -4229,7 +4229,7 @@
           .on("broadcast", { event: "rupture_updated" }, async () => {
             const data = await SB.fetchRuptureSettings();
             if (data) state.ruptureExclusions = new Set(data.filter(r => !r.is_active).map(r => r.product_reference));
-            invalidateCaches(); renderKpis();
+            invalidateCaches(); renderKpis(); renderRuptureChart();
             if (state.currentTab === "ruptureSettings") renderAdvancedPage("ruptureSettings");
             showToast("🔄 Paramètres ruptures modifiés");
           })
@@ -5021,7 +5021,7 @@
               // Fallback localStorage
               try { const saved = localStorage.getItem("rupture_exclusions"); if (saved) state.ruptureExclusions = new Set(JSON.parse(saved)); } catch(e) {}
             }
-            invalidateCaches(); renderKpis();
+            invalidateCaches(); renderKpis(); renderRuptureChart();
           });
           // Charger les paramètres HS Livraison
           SB.fetchHsLivraisonSettings().then(data => {
