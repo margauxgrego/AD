@@ -3224,7 +3224,7 @@
       const points = [...hist].reverse()
         .map(r => {
           const label = r.originalFilename || r.fileName || "";
-          const date = parseDateFromFilename(label) || r.date;
+          const date = r.date ? (r.date instanceof Date ? r.date : new Date(r.date)) : parseDateFromFilename(label);
           return { date, rupture: r.rupture ?? 0, label };
         })
         .filter(p => p.date && !isNaN(p.date.getTime()));
@@ -3352,7 +3352,7 @@
       const points = [...hist].reverse()
         .map(r => {
           const label = r.originalFilename || r.fileName || "";
-          const date = parseDateFromFilename(label) || r.date;
+          const date = r.date ? (r.date instanceof Date ? r.date : new Date(r.date)) : parseDateFromFilename(label);
           return { date, anomalies: r.anomalies ?? 0, label };
         })
         .filter(p => p.date && !isNaN(p.date.getTime()));
