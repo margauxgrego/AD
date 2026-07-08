@@ -3229,6 +3229,11 @@
         })
         .filter(p => p.date && !isNaN(p.date.getTime()));
 
+      // Le dernier point reflète toujours les paramètres d'exclusion courants
+      if (points.length > 0 && state.rows.length > 0) {
+        points[points.length - 1].rupture = computeMetrics().rupture;
+      }
+
       // Grouper par granularité
       const granularity = state.ruptureChartPeriod || "all";
       if (granularity === "all") {
