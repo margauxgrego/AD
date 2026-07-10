@@ -1359,6 +1359,7 @@
         if (item.STATUT === "MAGASIN" && item.EMPLACEMENT !== "MAGASIN") anomalies.push(anomaly("Statut magasin incohérent", item, "Vérifier si le produit est bien en magasin"));
         if (item.STATUT === "STOCK KUBE" && item.EMPLACEMENT !== "KUBE DESIGN") anomalies.push(anomaly("Stock Kube hors entrepôt", item, "Vérifier si le produit est bien à KUBE"));
         if (!item.SKU && !isFactice(item)) anomalies.push(anomaly("SKU vide", item, "Ajouter un SKU"));
+        if (item.SKU && item.SKU.trim().length === 1 && !isFactice(item)) anomalies.push(anomaly("SKU invalide", item, `SKU "${item.SKU}" invalide (1 caractère) — ajouter le vrai SKU`));
         if (!item.GAMME && !isFactice(item)) anomalies.push(anomaly("GAMME vide", item, "Ajouter une GAMME"));
         if (!item.TYPE && !isFactice(item)) anomalies.push(anomaly("TYPE vide", item, "Ajouter un TYPE"));
         if (item.STATUT && !KNOWN_STATUSES.has(item.STATUT)) anomalies.push(anomaly("Statut non reconnu", item, `STATUT "${item.STATUT}" à corriger — erreur de saisie ?`));
