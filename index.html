@@ -1368,7 +1368,7 @@
         if (item.STATUT === "LIVRAISON" && !item.EXPEDITEUR) anomalies.push(anomaly("Livraison sans expéditeur", item, "Ajouter un expéditeur"));
         if (!isFactice(item) && !item.MARKETING_NAME) anomalies.push(anomaly("MARKETING_NAME vide", item, "Ajouter un MARKETING_NAME"));
         if (item.STATUT === "STANDBY" && item.EMPLACEMENT !== "KUBE DESIGN") anomalies.push(anomaly("Standby hors Kube Design", item, "Vérifier que le produit soit bien à KUBE"));
-        if (item.STATUT === "STANDBY" && (!item.LIVRAISON || !/^x$/i.test(String(item.LIVRAISON).trim()))) anomalies.push(anomaly("Standby sans X livraison", item, "Mettre 'X' dans la colonne livraison pour valider le standby"));
+        if (item.STATUT === "STANDBY" && (!item.LIVRAISON || !/^x$/i.test(String(item.LIVRAISON).trim()))) anomalies.push(anomaly("Standby sans X livraison", item, "Enlever la date de livraison car produit standby"));
         if (item.STATUT === "STANDBY" && item.EXPEDITEUR && item.EXPEDITEUR.toUpperCase() !== "KUBE DESIGN") anomalies.push(anomaly("Standby expéditeur incorrect", item, "Changer l'expéditeur en Kube Design"));
         if (item.STATUT === "HS" && item.EMPLACEMENT !== "KUBE DESIGN" && item.EMPLACEMENT !== "LIVRAISON") anomalies.push(anomaly("HS hors Kube/Livraison", item, "Vérifier que le produit soit bien à KUBE"));
         if (item.STATUT === "PROJET" && item.EMPLACEMENT !== "KUBE DESIGN") anomalies.push(anomaly("Projet hors Kube Design", item, "Vérifier que le produit soit bien à KUBE"));
