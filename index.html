@@ -827,7 +827,7 @@
           <button id="reportingBtnSimple" class="primary" type="button">AD STOCK KUBE sans détail</button>
           <button id="newImportBtn" class="primary" type="button">Nouvel import SODA</button>
         </div>
-        <button id="installBtn" class="primary" type="button" style="background:#0b5cab;margin-left:auto">Télécharger le logiciel</button>
+        <button id="installBtn" class="primary" type="button" style="background:#0b5cab;margin-left:auto;display:none">Télécharger le logiciel</button>
       </div>
       <div id="kpiGrid" class="kpi-grid"></div>
     </header>
@@ -5070,15 +5070,17 @@
 
     // PWA — bouton d'installation
     let _deferredInstall;
+    const _installBtn = document.getElementById('installBtn');
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      _installBtn.style.display = 'none';
+    }
     window.addEventListener('beforeinstallprompt', e => {
       e.preventDefault();
       _deferredInstall = e;
-      const btn = document.getElementById('installBtn');
-      if (btn) btn.style.display = '';
+      _installBtn.style.display = '';
     });
     window.addEventListener('appinstalled', () => {
-      const btn = document.getElementById('installBtn');
-      if (btn) btn.style.display = 'none';
+      _installBtn.style.display = 'none';
       _deferredInstall = null;
     });
     document.getElementById('installBtn').addEventListener('click', async () => {
