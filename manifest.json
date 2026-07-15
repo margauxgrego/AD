@@ -1,0 +1,12 @@
+{
+  "name": "Kube Design — Service Produit",
+  "short_name": "Stock Kube",
+  "description": "Gestion de stock Samsung — Kube Design Service Produit",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0c1f38",
+  "theme_color": "#0b5cab",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
