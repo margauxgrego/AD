@@ -1,5 +1,14 @@
 {
   "alias": ["service-produit-stock.vercel.app"],
   "buildCommand": "node -e \"require('fs').writeFileSync('version.json', JSON.stringify({v: Date.now()}))\"",
-  "outputDirectory": "."
+  "outputDirectory": ".",
+  "headers": [
+    {
+      "source": "/sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" },
+        { "key": "Service-Worker-Allowed", "value": "/" }
+      ]
+    }
+  ]
 }
