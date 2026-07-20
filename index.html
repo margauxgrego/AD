@@ -1437,6 +1437,12 @@
     let _distinctCache = null;
     function invalidateCaches() { _metricsCache = null; _distinctCache = null; }
 
+    function anomalyProductKey(a) {
+      const imei = a.IMEI && String(a.IMEI).trim();
+      const sn   = a.SN   && String(a.SN).trim();
+      return imei ? 'I:' + imei : sn ? 'S:' + sn : 'ID:' + (a.ID ?? a.id ?? "?");
+    }
+
     function computeMetrics() {
       if (_metricsCache) return _metricsCache;
       const rows = state.rows;
@@ -1462,7 +1468,7 @@
         hsLivraison: rows.filter(r => r.STATUT === "HS" && r.EMPLACEMENT !== "KUBE DESIGN" && !isHsLivraisonExcluded(r)).length,
         incoming: rows.filter((r) => r.STATUT === "LIVRAISON" && r.EMPLACEMENT === "LIVRAISON" && isDeliveryActive(r)).length,
         installedMonth: rows.filter((r) => r.STATUT === "MAGASIN" && isCurrentMonth(r.__livraisonDate)).length,
-        anomalies: state.anomalies.filter(a => !state.dismissedAnomalies.has(a.dismissKey)).length
+        anomalies: new Set(state.anomalies.filter(a => !state.dismissedAnomalies.has(a.dismissKey)).map(anomalyProductKey)).size
       };
       return _metricsCache;
     }
@@ -1686,7 +1692,12 @@
       if (state.currentTab === "anomalies") {
         let base = state.anomalies.filter(a => !state.dismissedAnomalies.has(a.dismissKey));
         if (state.anomalyTypeFilter) base = base.filter(a => a.type === state.anomalyTypeFilter);
-        return base;
+        const grouped = new Map();
+        base.forEach(a => { const k = anomalyProductKey(a); if (!grouped.has(k)) grouped.set(k, []); grouped.get(k).push(a); });
+        return [...grouped.values()].map(list => {
+          if (list.length === 1) return list[0];
+          return { ...list[0], detail: list[0].detail, type: [...new Set(list.map(a => a.type))].join(", "), _anomalies: list, _grouped: true };
+        });
       }
       return state.rows;
     }
@@ -1812,6 +1823,19 @@
       });
       renderPager(state.page, totalPages, rows.length);
       if (!skipTools) renderTableTools();
+      if (tab === "anomalies") {
+        document.querySelectorAll("#dataTable .anomaly-expand-btn").forEach(btn => {
+          btn.addEventListener("click", function(e) {
+            e.stopPropagation();
+            const next = this.closest("tr").nextElementSibling;
+            if (next && next.classList.contains("anomaly-detail-rows")) {
+              const hidden = next.style.display === "none";
+              next.style.display = hidden ? "" : "none";
+              this.textContent = hidden ? `Masquer détail (${this.textContent.match(/\d+/)?.[0]})` : `Afficher détail (${this.textContent.match(/\d+/)?.[0]})`;
+            }
+          });
+        });
+      }
       // Drilldown IMEI/SN pour les onglets low/critical
       if (tab === "low" || tab === "critical") {
         document.querySelectorAll("#dataTable tr[data-sku-drill]").forEach(tr => {
@@ -1830,11 +1854,14 @@
       const head = `<thead><tr>${cols.map(([key, label]) => `<th ${sortable ? `data-key="${escapeHtml(key)}"` : ""}>${escapeHtml(label)}</th>`).join("")}</tr></thead>`;
       const isSkuDrillTab = state.currentTab === "low" || state.currentTab === "critical";
       const isDetailTab = state.currentTab === "detail";
-      const body = `<tbody>${rows.map((rowData) => { const isAnomaliesTab = state.currentTab === "anomalies"; const noDate = !isAnomaliesTab && rowData.STATUT === "LIVRAISON" && rowData.EMPLACEMENT === "LIVRAISON" && !rowData.__livraisonDate; const ruptureProjet = !isAnomaliesTab && rowData.alert === "rupture" && (rowData.ruptureProjet || 0) >= 1; const cls = noDate ? "row-no-date" : ruptureProjet ? "row-rupture-projet" : ""; const skuAttr = isSkuDrillTab && rowData.key ? ` class="clickable-row${cls ? " "+cls : ""}" data-sku-drill="${escapeHtml(rowData.key)}" data-sku-name="${escapeHtml(rowData.canonicalName||"")}"` : (cls ? ` class="${cls}"` : ""); const imeiAttr = isDetailTab ? ` data-imei="${escapeHtml(rowData.IMEI||"")}" data-sn="${escapeHtml(rowData.SN||"")}"` : ""; return `<tr${skuAttr}${imeiAttr}>${cols.map(([key]) => `<td>${cellHtml(rowData, key)}</td>`).join("")}</tr>`; }).join("")}</tbody>`;
+      const body = `<tbody>${rows.map((rowData) => { const isAnomaliesTab = state.currentTab === "anomalies"; const noDate = !isAnomaliesTab && rowData.STATUT === "LIVRAISON" && rowData.EMPLACEMENT === "LIVRAISON" && !rowData.__livraisonDate; const ruptureProjet = !isAnomaliesTab && rowData.alert === "rupture" && (rowData.ruptureProjet || 0) >= 1; const cls = noDate ? "row-no-date" : ruptureProjet ? "row-rupture-projet" : ""; const skuAttr = isSkuDrillTab && rowData.key ? ` class="clickable-row${cls ? " "+cls : ""}" data-sku-drill="${escapeHtml(rowData.key)}" data-sku-name="${escapeHtml(rowData.canonicalName||"")}"` : (cls ? ` class="${cls}"` : ""); const imeiAttr = isDetailTab ? ` data-imei="${escapeHtml(rowData.IMEI||"")}" data-sn="${escapeHtml(rowData.SN||"")}"` : ""; const mainRow = `<tr${skuAttr}${imeiAttr}>${cols.map(([key]) => `<td>${cellHtml(rowData, key)}</td>`).join("")}</tr>`; const detailRow = (isAnomaliesTab && rowData._grouped) ? `<tr class="anomaly-detail-rows" style="display:none"><td colspan="${cols.length}" style="padding:4px 8px 8px"><div style="background:var(--panel-2);border-radius:6px;padding:6px 8px"><table style="width:100%;border-collapse:collapse;font-size:12px">${rowData._anomalies.map(a => `<tr><td style="padding:3px 8px;color:var(--muted);font-style:italic;white-space:nowrap;width:200px">${escapeHtml(a.type)}</td><td style="padding:3px 8px">${escapeHtml(a.detail)}</td></tr>`).join("")}</table></div></td></tr>` : ""; return mainRow + detailRow; }).join("")}</tbody>`;
       return head + body;
     }
 
     function cellHtml(rowData, key) {
+      if (key === "detail" && rowData._grouped) {
+        return `<button class="anomaly-expand-btn" type="button" style="font-size:11px;padding:2px 8px;border:1px solid var(--line);border-radius:4px;cursor:pointer;background:var(--panel-2);white-space:nowrap">Afficher détail (${rowData._anomalies.length})</button>`;
+      }
       const value = rowData[key];
       if (key === "alertLabel") {
         const cls = rowData.alert === "ok" ? "ok" : rowData.alert === "low" ? "low" : rowData.alert === "critical" ? "critical" : rowData.alert === "rupture" ? "rupture" : "zero";
@@ -3127,6 +3154,24 @@
         });
       });
 
+      document.getElementById("advancedPages").querySelectorAll(".hist-del-btn").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          if (!confirm("Supprimer cet import de l'historique ?")) return;
+          btn.disabled = true; btn.textContent = "…";
+          const { histType, histDel } = btn.dataset;
+          if (histType === "cloud" && SB.client) {
+            await SB.client.from("kpi_snapshots").delete().eq("import_id", histDel);
+            _apiCache.invalidate("history");
+            state.sbKpiHistory = null;
+            state.sbKpiHistory = await SB.fetchHistory() || [];
+          } else if (histType === "local") {
+            const displayIdx = parseInt(histDel, 10);
+            importHistory.splice(importHistory.length - 1 - displayIdx, 1);
+          }
+          document.getElementById("advancedPages").innerHTML = renderHistoryPage();
+          initAdvancedPageEvents();
+        });
+      });
     }
 
     function handleAdvAction(action, filter) {
@@ -3494,13 +3539,16 @@
         <div class="adv-section-title">Historique des imports ${isCloud ? `<span style="font-size:11px;color:var(--green);font-weight:600;margin-left:8px">● Supabase — partagé entre machines</span>` : `<span style="font-size:11px;color:var(--muted);font-weight:400;margin-left:8px">(session locale)</span>`}</div>
         <div class="adv-card">
           <table class="adv-table">
-            <thead><tr><th>Date</th><th>Fichier</th><th>Anomalies</th>${isCloud ? "<th>Actions</th>" : ""}</tr></thead>
-            <tbody>${rows.map(r => {
+            <thead><tr><th>Date</th><th>Fichier</th><th>Anomalies</th><th>Actions</th></tr></thead>
+            <tbody>${rows.map((r, displayIdx) => {
               const dateStr = r.date ? (r.date instanceof Date ? r.date.toLocaleDateString("fr-FR") : new Date(r.date).toLocaleDateString("fr-FR")) : "—";
               const hasFile = isCloud && r.fileUrl;
               const isCurrent = isCloud && r.isLastOpened;
-              const actionsCell = isCloud ? `<td style="white-space:nowrap">
-                ${hasFile ? `
+              const delBtn = isCloud
+                ? `<button class="hist-del-btn" data-hist-type="cloud" data-hist-del="${escapeHtml(r.importId||"")}" style="font-size:10px;padding:2px 7px;background:#fff0f0;border:1px solid #e0a0a0;border-radius:4px;cursor:pointer;color:var(--red)">Supprimer</button>`
+                : `<button class="hist-del-btn" data-hist-type="local" data-hist-del="${displayIdx}" style="font-size:10px;padding:2px 7px;background:#fff0f0;border:1px solid #e0a0a0;border-radius:4px;cursor:pointer;color:var(--red)">Supprimer</button>`;
+              const actionsCell = `<td style="white-space:nowrap">
+                ${isCloud && hasFile ? `
                   <button class="sb-file-btn" data-action="open"
                     data-import-id="${escapeHtml(r.importId||"")}"
                     data-file-url="${escapeHtml(r.fileUrl||"")}"
@@ -3510,15 +3558,16 @@
                     data-import-id="${escapeHtml(r.importId||"")}"
                     data-file-url="${escapeHtml(r.fileUrl||"")}"
                     data-file-name="${escapeHtml(r.originalFilename||r.fileName||"")}"
-                    style="font-size:10px;padding:2px 7px;background:#f4f6f8;border:1px solid var(--line);border-radius:4px;cursor:pointer">Télécharger</button>
-                ` : `<span style="font-size:10px;color:var(--muted)">Non archivé</span>`}
+                    style="font-size:10px;padding:2px 7px;margin-right:3px;background:#f4f6f8;border:1px solid var(--line);border-radius:4px;cursor:pointer">Télécharger</button>
+                ` : ""}
+                ${delBtn}
                 ${isCurrent ? `<span style="font-size:10px;color:var(--green);margin-left:4px">● actif</span>` : ""}
-              </td>` : "";
+              </td>`;
               return `<tr${isCurrent ? ' style="background:#f0f9f4"' : ""}>
                 <td>${dateStr}</td>
                 <td>${escapeHtml(r.fileName || "")}</td>
                 <td style="color:${(r.anomalies ?? 0) > 0 ? "var(--red)" : "inherit"}">${r.anomalies ?? "—"}</td>
-                                ${actionsCell}
+                ${actionsCell}
               </tr>`;
             }).join("")}</tbody>
           </table>
